@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -58,10 +59,10 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        Schema::table($tableName, function (Blueprint $table): void {
-            $table->rawIndex('sender', 'jnt_orders_sender_gin_index');
-            $table->rawIndex('receiver', 'jnt_orders_receiver_gin_index');
-            $table->rawIndex('metadata', 'jnt_orders_metadata_gin_index');
+        Schema::table($tableName, function (Blueprint $table) use ($tableName): void {
+            DB::statement('CREATE INDEX jnt_orders_sender_gin_index ON '.$tableName.' USING GIN (sender)');
+            DB::statement('CREATE INDEX jnt_orders_receiver_gin_index ON '.$tableName.' USING GIN (receiver)');
+            DB::statement('CREATE INDEX jnt_orders_metadata_gin_index ON '.$tableName.' USING GIN (metadata)');
         });
     }
 
