@@ -24,7 +24,7 @@ return new class extends Migration
             $table->string('scan_type_code', 32)->nullable()->index();
             $table->string('scan_type_name', 128)->nullable();
             $table->string('scan_type', 128)->nullable();
-            $table->timestampTz('scan_time')->nullable()->index();
+            $table->timestamp('scan_time')->nullable()->index();
             $table->text('description')->nullable();
             $table->string('scan_network_type_name', 128)->nullable();
             $table->string('scan_network_name', 128)->nullable();
@@ -60,9 +60,12 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        Schema::table($trackingEventsTable, function (Blueprint $table): void {
-            $table->rawIndex('payload', 'jnt_tracking_events_payload_gin_index');
-        });
+        // GIN indexes only work with jsonb in PostgreSQL
+        if (commerce_json_column_type('jnt', 'json') === 'jsonb') {
+            Schema::table($trackingEventsTable, function (Blueprint $table): void {
+                $table->rawIndex('payload', 'jnt_tracking_events_payload_gin_index');
+            });
+        }
     }
 
     public function down(): void

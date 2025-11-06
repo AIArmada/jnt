@@ -27,13 +27,16 @@ return new class extends Migration
             $table->{$jsonType}('payload')->nullable();
             $table->string('processing_status', 32)->default('pending')->index();
             $table->text('processing_error')->nullable();
-            $table->timestampTz('processed_at')->nullable();
+            $table->timestamp('processed_at')->nullable();
             $table->timestamps();
         });
 
-        Schema::table($webhookLogsTable, function (Blueprint $table): void {
-            $table->rawIndex('payload', 'jnt_webhook_logs_payload_gin_index');
-        });
+        // GIN indexes only work with jsonb in PostgreSQL
+        if (commerce_json_column_type('jnt', 'json') === 'jsonb') {
+            Schema::table($webhookLogsTable, function (Blueprint $table): void {
+                $table->rawIndex('payload', 'jnt_webhook_logs_payload_gin_index');
+            });
+        }
     }
 
     public function down(): void

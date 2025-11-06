@@ -13,8 +13,9 @@ return new class extends Migration
     {
         $tableName = config('jnt.database.tables.orders', config('jnt.database.table_prefix', 'jnt_').'orders');
 
-        Schema::create($tableName, function (Blueprint $table): void {
-            $jsonType = (string) commerce_json_column_type('jnt', 'json');
+        $jsonType = (string) commerce_json_column_type('jnt', 'json');
+
+        Schema::create($tableName, function (Blueprint $table) use ($jsonType): void {
             $table->uuid('id')->primary();
             $table->string('order_id', 50)->unique();
             $table->string('tracking_number', 30)->nullable()->unique();
@@ -37,13 +38,13 @@ return new class extends Migration
             $table->decimal('offer_value', 12, 2)->nullable();
             $table->decimal('cod_value', 12, 2)->nullable();
             $table->decimal('insurance_value', 12, 2)->nullable();
-            $table->timestampTz('pickup_start_at')->nullable();
-            $table->timestampTz('pickup_end_at')->nullable();
-            $table->timestampTz('ordered_at')->nullable()
+            $table->timestamp('pickup_start_at')->nullable();
+            $table->timestamp('pickup_end_at')->nullable();
+            $table->timestamp('ordered_at')->nullable()
                 ->comment('Original order creation time reported by J&T');
-            $table->timestampTz('last_synced_at')->nullable();
-            $table->timestampTz('last_tracked_at')->nullable();
-            $table->timestampTz('delivered_at')->nullable();
+            $table->timestamp('last_synced_at')->nullable();
+            $table->timestamp('last_tracked_at')->nullable();
+            $table->timestamp('delivered_at')->nullable();
             $table->string('last_status_code', 32)->nullable();
             $table->string('last_status', 128)->nullable();
             $table->boolean('has_problem')->default(false);
@@ -59,11 +60,14 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        Schema::table($tableName, function (Blueprint $table) use ($tableName): void {
-            DB::statement('CREATE INDEX jnt_orders_sender_gin_index ON '.$tableName.' USING GIN (sender)');
-            DB::statement('CREATE INDEX jnt_orders_receiver_gin_index ON '.$tableName.' USING GIN (receiver)');
-            DB::statement('CREATE INDEX jnt_orders_metadata_gin_index ON '.$tableName.' USING GIN (metadata)');
-        });
+        // GIN indexes only work with jsonb in PostgreSQL
+        if ($jsonType === 'jsonb') {
+            Schema::table($tableName, function (Blueprint $table) use ($tableName): void {
+                DB::statement('CREATE INDEX jnt_orders_sender_gin_index ON '.$tableName.' USING GIN (sender)');
+                DB::statement('CREATE INDEX jnt_orders_receiver_gin_index ON '.$tableName.' USING GIN (receiver)');
+                DB::statement('CREATE INDEX jnt_orders_metadata_gin_index ON '.$tableName.' USING GIN (metadata)');
+            });
+        }
     }
 
     public function down(): void
