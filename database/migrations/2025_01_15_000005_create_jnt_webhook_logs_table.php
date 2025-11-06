@@ -33,8 +33,8 @@ return new class extends Migration
 
         // GIN indexes only work with jsonb in PostgreSQL
         if (commerce_json_column_type('jnt', 'json') === 'jsonb') {
-            Schema::table($webhookLogsTable, function (Blueprint $table): void {
-                $table->rawIndex('payload', 'jnt_webhook_logs_payload_gin_index');
+            Schema::table($webhookLogsTable, function (Blueprint $table) use ($webhookLogsTable): void {
+                DB::statement('CREATE INDEX jnt_webhook_logs_payload_gin_index ON '.$webhookLogsTable.' USING GIN (payload)');
             });
         }
     }

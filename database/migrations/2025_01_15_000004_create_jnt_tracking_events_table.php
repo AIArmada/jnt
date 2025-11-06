@@ -62,8 +62,8 @@ return new class extends Migration
 
         // GIN indexes only work with jsonb in PostgreSQL
         if (commerce_json_column_type('jnt', 'json') === 'jsonb') {
-            Schema::table($trackingEventsTable, function (Blueprint $table): void {
-                $table->rawIndex('payload', 'jnt_tracking_events_payload_gin_index');
+            Schema::table($trackingEventsTable, function (Blueprint $table) use ($trackingEventsTable): void {
+                DB::statement('CREATE INDEX jnt_tracking_events_payload_gin_index ON '.$trackingEventsTable.' USING GIN (payload)');
             });
         }
     }
