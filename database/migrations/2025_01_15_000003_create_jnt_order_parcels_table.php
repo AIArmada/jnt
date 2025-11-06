@@ -33,9 +33,12 @@ return new class extends Migration
             $table->index(['tracking_number']);
         });
 
-        Schema::table($orderParcelsTable, function (Blueprint $table): void {
-            $table->rawIndex('metadata', 'jnt_order_parcels_metadata_gin_index');
-        });
+        // GIN indexes only work with jsonb in PostgreSQL
+        if (commerce_json_column_type('jnt', 'json') === 'jsonb') {
+            Schema::table($orderParcelsTable, function (Blueprint $table): void {
+                $table->rawIndex('metadata', 'jnt_order_parcels_metadata_gin_index');
+            });
+        }
     }
 
     public function down(): void

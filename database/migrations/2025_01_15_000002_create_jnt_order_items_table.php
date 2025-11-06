@@ -33,9 +33,12 @@ return new class extends Migration
             $table->index(['order_id', 'name']);
         });
 
-        Schema::table($orderItemsTable, function (Blueprint $table): void {
-            $table->rawIndex('metadata', 'jnt_order_items_metadata_gin_index');
-        });
+        // GIN indexes only work with jsonb in PostgreSQL
+        if (commerce_json_column_type('jnt', 'json') === 'jsonb') {
+            Schema::table($orderItemsTable, function (Blueprint $table): void {
+                $table->rawIndex('metadata', 'jnt_order_items_metadata_gin_index');
+            });
+        }
     }
 
     public function down(): void
