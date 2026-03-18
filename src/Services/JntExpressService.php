@@ -16,6 +16,7 @@ use AIArmada\Jnt\Exceptions\JntConfigurationException;
 use AIArmada\Jnt\Exceptions\JntValidationException;
 use AIArmada\Jnt\Http\JntClient;
 use AIArmada\Jnt\Support\FieldNameConverter;
+use Illuminate\Support\Facades\Concurrency;
 use Throwable;
 
 class JntExpressService
@@ -342,7 +343,7 @@ class JntExpressService
 
         // Execute all tracking requests in parallel
         /** @var array<string, array{success: bool, data?: TrackingData, error?: string, identifier: string, type: string}> $results */
-        $results = \Illuminate\Support\Facades\Concurrency::run($tasks);
+        $results = Concurrency::run($tasks);
 
         // Process results
         foreach ($results as $result) {
@@ -455,7 +456,7 @@ class JntExpressService
 
         // Execute all print requests in parallel
         /** @var array<string, array{success: bool, orderId: string, data?: array<string, mixed>, error?: string}> $results */
-        $results = \Illuminate\Support\Facades\Concurrency::run($tasks);
+        $results = Concurrency::run($tasks);
 
         $successful = [];
         $failed = [];

@@ -7,6 +7,7 @@ namespace AIArmada\Jnt\Models;
 use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -37,16 +38,16 @@ use InvalidArgumentException;
  * @property string|null $offer_value
  * @property string|null $cod_value
  * @property string|null $insurance_value
- * @property \Carbon\CarbonInterface|null $pickup_start_at
- * @property \Carbon\CarbonInterface|null $pickup_end_at
- * @property \Carbon\CarbonInterface|null $ordered_at
- * @property \Carbon\CarbonInterface|null $last_synced_at
- * @property \Carbon\CarbonInterface|null $last_tracked_at
- * @property \Carbon\CarbonInterface|null $delivered_at
+ * @property CarbonInterface|null $pickup_start_at
+ * @property CarbonInterface|null $pickup_end_at
+ * @property CarbonInterface|null $ordered_at
+ * @property CarbonInterface|null $last_synced_at
+ * @property CarbonInterface|null $last_tracked_at
+ * @property CarbonInterface|null $delivered_at
  * @property string|null $last_status_code
  * @property string|null $last_status
  * @property bool $has_problem
- * @property \Carbon\CarbonInterface|null $cancelled_at
+ * @property CarbonInterface|null $cancelled_at
  * @property string|null $cancellation_reason
  * @property string|null $remark
  * @property array<string, mixed>|null $sender
@@ -59,8 +60,8 @@ use InvalidArgumentException;
  * @property array<string, mixed>|null $metadata
  * @property string|null $owner_type
  * @property string|null $owner_id
- * @property \Carbon\CarbonInterface|null $created_at
- * @property \Carbon\CarbonInterface|null $updated_at
+ * @property CarbonInterface|null $created_at
+ * @property CarbonInterface|null $updated_at
  * @property-read Collection<int, JntOrderItem> $items
  * @property-read Collection<int, JntOrderParcel> $parcels
  * @property-read Collection<int, JntTrackingEvent> $trackingEvents
@@ -280,7 +281,7 @@ final class JntOrder extends Model
 
     protected function resolveOwner(): ?Model
     {
-        return \AIArmada\CommerceSupport\Support\OwnerContext::resolve();
+        return OwnerContext::resolve();
     }
 
     /**

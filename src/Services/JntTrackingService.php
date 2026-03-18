@@ -14,6 +14,7 @@ use AIArmada\Jnt\Models\JntTrackingEvent;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Throwable;
@@ -263,7 +264,7 @@ class JntTrackingService
     {
         $includeGlobal = $includeGlobal && (bool) config('jnt.owner.include_global', false);
 
-        /** @var \Illuminate\Database\Eloquent\Builder<JntOrder> $query */
+        /** @var Builder<JntOrder> $query */
         $query = JntOrder::query()->forOwner(owner: $owner, includeGlobal: $includeGlobal);
 
         return $query

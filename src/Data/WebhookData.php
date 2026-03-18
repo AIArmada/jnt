@@ -108,7 +108,7 @@ class WebhookData extends Data
     }
 
     /**
-     * @see \AIArmada\Jnt\Data\WebhookData::toJntAckResponse()
+     * @see WebhookData::toJntAckResponse()
      * @deprecated Use toJntAckResponse() instead
      */
     public function toJntResponse(): array
