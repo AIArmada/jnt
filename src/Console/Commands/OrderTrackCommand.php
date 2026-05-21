@@ -42,9 +42,9 @@ final class OrderTrackCommand extends Command
             $details = [];
             foreach ($tracking->details->toCollection() as $detail) {
                 $details[] = [
-                    $detail->scanTime ?? 'N/A',
-                    $detail->scanType ?? 'N/A',
-                    $detail->description ?? 'No description',
+                    $detail->scanTime,
+                    $detail->scanType,
+                    $detail->description,
                 ];
             }
 

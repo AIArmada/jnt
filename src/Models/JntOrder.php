@@ -13,7 +13,6 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use InvalidArgumentException;
 
 /**
  * @property string $id
@@ -71,9 +70,7 @@ use InvalidArgumentException;
  */
 final class JntOrder extends Model
 {
-    use HasOwner {
-        scopeForOwner as baseScopeForOwner;
-    }
+    use HasOwner;
     use HasOwnerScopeConfig;
     use HasUuids;
 
@@ -134,45 +131,6 @@ final class JntOrder extends Model
         $prefix = config('jnt.database.table_prefix', 'jnt_');
 
         return $tables['orders'] ?? $prefix . 'orders';
-    }
-
-    /**
-     * Scope query to the specified owner (with config toggle).
-     *
-     * @param  Builder<static>  $query
-     * @return Builder<static>
-     */
-    public function scopeForOwner(Builder $query, Model | string | null $owner = OwnerContext::CURRENT, bool $includeGlobal = false): Builder
-    {
-        if (! config('jnt.owner.enabled', false)) {
-            return $query;
-        }
-
-        if ($owner === OwnerContext::CURRENT) {
-            $owner = $this->resolveOwner();
-        }
-
-        if (is_string($owner)) {
-            throw new InvalidArgumentException('Owner must be an Eloquent model, null, or omitted.');
-        }
-
-        if ($owner === null) {
-            if (! (bool) config('jnt.owner.include_global', false)) {
-                return $query->whereRaw('0 = 1');
-            }
-
-            /** @var Builder<static> $globalOnly */
-            $globalOnly = $this->baseScopeForOwner($query, null, false);
-
-            return $globalOnly;
-        }
-
-        $includeGlobal = $includeGlobal && (bool) config('jnt.owner.include_global', false);
-
-        /** @var Builder<static> $scoped */
-        $scoped = $this->baseScopeForOwner($query, $owner, $includeGlobal);
-
-        return $scoped;
     }
 
     /**

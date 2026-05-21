@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace AIArmada\Jnt\Models;
 
-use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use Illuminate\Database\Eloquent\Builder;
@@ -43,22 +42,22 @@ final class JntOrderParcel extends Model
     protected static function booted(): void
     {
         static::creating(function (JntOrderParcel $parcel): void {
-            if ($parcel->owner_type !== null || $parcel->owner_id !== null) {
-                return;
-            }
-
-            $owner = OwnerContext::resolve();
-
-            $query = JntOrder::query();
-
-            if ($owner === null) {
-                $query->withoutOwnerScope();
-            }
-
-            $order = $query->find($parcel->order_id);
+            // Always fetch parent order without scope to detect cross-owner writes.
+            $order = JntOrder::query()->withoutOwnerScope()->find($parcel->order_id);
 
             if ($order === null) {
                 throw new InvalidArgumentException('Invalid order_id for JntOrderParcel.');
+            }
+
+            if ($parcel->owner_type !== null || $parcel->owner_id !== null) {
+                if ($order->owner_type !== $parcel->owner_type
+                    || (string) $order->owner_id !== (string) $parcel->owner_id) {
+                    throw new InvalidArgumentException(
+                        'JntOrderParcel order_id belongs to a different owner than the current context.',
+                    );
+                }
+
+                return;
             }
 
             $parcel->owner_type = $order->owner_type;

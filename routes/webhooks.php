@@ -16,9 +16,11 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::post(
-    config('jnt.webhooks.route', 'webhooks/jnt/status'),
-    [WebhookController::class, 'handle']
-)
-    ->middleware(config('jnt.webhooks.middleware', ['api']))
-    ->name('jnt.webhooks.status');
+if ((bool) config('jnt.webhooks.enabled', true)) {
+    Route::post(
+        config('jnt.webhooks.route', 'webhooks/jnt/status'),
+        [WebhookController::class, 'handle']
+    )
+        ->middleware(config('jnt.webhooks.middleware', ['api']))
+        ->name('jnt.webhooks.status');
+}

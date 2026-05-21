@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\Jnt\Data;
 
+use Carbon\CarbonImmutable;
 use Spatie\LaravelData\Attributes\DataCollectionOf;
 use Spatie\LaravelData\Data;
 use Spatie\LaravelData\DataCollection;
@@ -76,7 +77,13 @@ class TrackingData extends Data
             return null;
         }
 
-        return $this->details->first();
+        /** @var TrackingDetailData|null $latestDetail */
+        $latestDetail = $this->details
+            ->toCollection()
+            ->sortByDesc(fn (TrackingDetailData $detail): int => CarbonImmutable::parse($detail->scanTime)->getTimestamp())
+            ->first();
+
+        return $latestDetail;
     }
 
     public function getLatestStatus(): ?string

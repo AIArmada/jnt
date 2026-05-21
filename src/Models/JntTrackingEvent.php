@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace AIArmada\Jnt\Models;
 
-use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use AIArmada\Jnt\Enums\ScanTypeCode;
@@ -20,6 +19,7 @@ use InvalidArgumentException;
 /**
  * @property string $id
  * @property string|null $order_id
+ * @property string|null $event_hash
  * @property string $tracking_number
  * @property string|null $order_reference
  * @property string|null $scan_type_code
@@ -76,26 +76,26 @@ final class JntTrackingEvent extends Model
     protected static function booted(): void
     {
         static::creating(function (JntTrackingEvent $event): void {
-            if ($event->owner_type !== null || $event->owner_id !== null) {
-                return;
-            }
-
             if ($event->order_id === null) {
                 return;
             }
 
-            $owner = OwnerContext::resolve();
-
-            $query = JntOrder::query();
-
-            if ($owner === null) {
-                $query->withoutOwnerScope();
-            }
-
-            $order = $query->find($event->order_id);
+            // Always fetch parent order without scope to detect cross-owner writes.
+            $order = JntOrder::query()->withoutOwnerScope()->find($event->order_id);
 
             if ($order === null) {
                 throw new InvalidArgumentException('Invalid order_id for JntTrackingEvent.');
+            }
+
+            if ($event->owner_type !== null || $event->owner_id !== null) {
+                if ($order->owner_type !== $event->owner_type
+                    || (string) $order->owner_id !== (string) $event->owner_id) {
+                    throw new InvalidArgumentException(
+                        'JntTrackingEvent order_id belongs to a different owner than the current context.',
+                    );
+                }
+
+                return;
             }
 
             $event->owner_type = $order->owner_type;
@@ -107,6 +107,7 @@ final class JntTrackingEvent extends Model
      * @var list<string>
      */
     protected $fillable = [
+        'event_hash',
         'order_id',
         'tracking_number',
         'order_reference',
@@ -200,11 +201,14 @@ final class JntTrackingEvent extends Model
      */
     public function getNormalizedStatus(): TrackingStatus
     {
-        if ($this->scan_type_code === null) {
+        if ($this->scan_type_code === null && $this->description === null && $this->scan_type_name === null && $this->scan_type === null) {
             return TrackingStatus::Pending;
         }
 
-        return app(JntStatusMapper::class)->fromCode($this->scan_type_code);
+        return app(JntStatusMapper::class)->resolve(
+            scanTypeCode: $this->scan_type_code,
+            statusDescription: $this->description ?? $this->scan_type_name ?? $this->scan_type,
+        );
     }
 
     /**

@@ -17,6 +17,7 @@ use AIArmada\Jnt\Exceptions\JntValidationException;
 use AIArmada\Jnt\Http\JntClient;
 use AIArmada\Jnt\Support\FieldNameConverter;
 use Illuminate\Support\Facades\Concurrency;
+use Illuminate\Support\Str;
 use Throwable;
 
 class JntExpressService
@@ -60,7 +61,7 @@ class JntExpressService
         $password = $this->getPassword();
 
         $orderData = [
-            'txlogisticId' => $orderId ?? 'TXN-' . time(),
+            'txlogisticId' => $orderId ?? 'TXN-' . (string) Str::ulid(),
             'actionType' => 'add',
             'serviceType' => '1',
             'payType' => 'PP_PM',

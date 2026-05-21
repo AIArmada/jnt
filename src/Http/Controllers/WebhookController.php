@@ -13,6 +13,7 @@ use Illuminate\Validation\ValidationException;
 use Spatie\WebhookClient\Exceptions\InvalidWebhookSignature;
 use Spatie\WebhookClient\WebhookConfig;
 use Spatie\WebhookClient\WebhookProcessor;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Throwable;
 
 /**
@@ -41,6 +42,14 @@ class WebhookController
     public function handle(Request $request, WebhookConfig $config): JsonResponse
     {
         try {
+            if (! (bool) config('jnt.webhooks.enabled', true)) {
+                throw new NotFoundHttpException;
+            }
+
+            if ($config->signingSecret === '') {
+                $config->signingSecret = (string) config('jnt.private_key', '');
+            }
+
             $response = (new WebhookProcessor($request, $config))->process();
 
             if (config('jnt.webhooks.log_payloads', false)) {
@@ -92,6 +101,10 @@ class WebhookController
             $response = $this->webhookService->failureResponse('Invalid signature');
 
             return response()->json($response, 401);
+        } catch (NotFoundHttpException) {
+            return response()->json([
+                'message' => 'Not Found',
+            ], 404);
         } catch (Throwable $e) {
             // Unexpected error
             Log::error('J&T webhook processing error', [

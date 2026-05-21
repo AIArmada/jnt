@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace AIArmada\Jnt\Models;
 
-use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use Carbon\CarbonImmutable;
@@ -45,26 +44,26 @@ final class JntWebhookLog extends Model
     protected static function booted(): void
     {
         static::creating(function (JntWebhookLog $log): void {
-            if ($log->owner_type !== null || $log->owner_id !== null) {
-                return;
-            }
-
             if ($log->order_id === null) {
                 return;
             }
 
-            $owner = OwnerContext::resolve();
-
-            $query = JntOrder::query();
-
-            if ($owner === null) {
-                $query->withoutOwnerScope();
-            }
-
-            $order = $query->find($log->order_id);
+            // Always fetch parent order without scope to detect cross-owner writes.
+            $order = JntOrder::query()->withoutOwnerScope()->find($log->order_id);
 
             if ($order === null) {
                 throw new InvalidArgumentException('Invalid order_id for JntWebhookLog.');
+            }
+
+            if ($log->owner_type !== null || $log->owner_id !== null) {
+                if ($order->owner_type !== $log->owner_type
+                    || (string) $order->owner_id !== (string) $log->owner_id) {
+                    throw new InvalidArgumentException(
+                        'JntWebhookLog order_id belongs to a different owner than the current context.',
+                    );
+                }
+
+                return;
             }
 
             $log->owner_type = $order->owner_type;

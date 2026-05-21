@@ -150,7 +150,7 @@ Configure webhook handling:
     'middleware' => ['api'],
     
     // Verify signature on incoming webhooks
-    'verify_signature' => env('JNT_WEBHOOK_VERIFY_SIGNATURE', true),
+    'verify_signature' => env('JNT_WEBHOOKS_VERIFY_SIGNATURE', true),
     
     // Log full webhook payloads (debugging only)
     'log_payloads' => env('JNT_WEBHOOK_LOG_PAYLOADS', false),
@@ -162,7 +162,7 @@ Configure webhook handling:
 In production, always enable signature verification. To temporarily disable for debugging:
 
 ```env
-JNT_WEBHOOK_VERIFY_SIGNATURE=false
+JNT_WEBHOOKS_VERIFY_SIGNATURE=false
 ```
 
 ## Owner Scoping (Multi-tenancy)
@@ -178,7 +178,7 @@ Configure owner-based data isolation:
     'include_global' => env('JNT_OWNER_INCLUDE_GLOBAL', false),
     
     // Auto-assign owner on record creation
-    'auto_assign_on_create' => env('JNT_OWNER_AUTO_ASSIGN_ON_CREATE', true),
+    'auto_assign_on_create' => env('JNT_OWNER_AUTO_ASSIGN', true),
 ],
 ```
 
@@ -332,7 +332,7 @@ return [
         'enabled' => env('JNT_WEBHOOKS_ENABLED', true),
         'route' => 'webhooks/jnt/status',
         'middleware' => ['api'],
-        'verify_signature' => env('JNT_WEBHOOK_VERIFY_SIGNATURE', true),
+        'verify_signature' => env('JNT_WEBHOOKS_VERIFY_SIGNATURE', true),
         'log_payloads' => env('JNT_WEBHOOK_LOG_PAYLOADS', false),
     ],
 
@@ -344,7 +344,7 @@ return [
     'owner' => [
         'enabled' => env('JNT_OWNER_ENABLED', false),
         'include_global' => env('JNT_OWNER_INCLUDE_GLOBAL', false),
-        'auto_assign_on_create' => env('JNT_OWNER_AUTO_ASSIGN_ON_CREATE', true),
+        'auto_assign_on_create' => env('JNT_OWNER_AUTO_ASSIGN', true),
     ],
 
     /*

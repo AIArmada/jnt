@@ -31,7 +31,12 @@ class JntTrackingService
      */
     public function getNormalizedStatus(TrackingDetailData $detail): TrackingStatus
     {
-        return $this->statusMapper->fromCode($detail->scanTypeCode);
+        return $this->statusMapper->resolve(
+            scanTypeCode: $detail->scanTypeCode,
+            statusDescription: $detail->description !== ''
+                ? $detail->description
+                : ($detail->scanTypeName !== '' ? $detail->scanTypeName : $detail->scanType),
+        );
     }
 
     /**
@@ -43,8 +48,11 @@ class JntTrackingService
             return TrackingStatus::Pending;
         }
 
-        // Get the most recent tracking detail
-        $latestDetail = $trackingData->details->first();
+        $latestDetail = $trackingData->getLatestDetail();
+
+        if ($latestDetail === null) {
+            return TrackingStatus::Pending;
+        }
 
         return $this->getNormalizedStatus($latestDetail);
     }
@@ -164,9 +172,9 @@ class JntTrackingService
             // Update order status
             $currentStatus = $this->getCurrentStatus($trackingData);
             $previousStatusCode = $order->last_status_code;
+            $latestDetail = $trackingData->getLatestDetail();
 
-            if ($trackingData->details->count() > 0) {
-                $latestDetail = $trackingData->details->first();
+            if ($latestDetail !== null) {
                 $order->last_status_code = $latestDetail->scanTypeCode;
                 $order->last_status = $latestDetail->description;
                 $order->last_tracked_at = CarbonImmutable::now();

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace AIArmada\Jnt\Models;
 
-use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use Illuminate\Database\Eloquent\Builder;
@@ -44,24 +43,27 @@ final class JntOrderItem extends Model
     protected static function booted(): void
     {
         static::creating(function (JntOrderItem $item): void {
-            if ($item->owner_type !== null || $item->owner_id !== null) {
-                return;
-            }
-
-            $owner = OwnerContext::resolve();
-
-            $query = JntOrder::query();
-
-            if ($owner === null) {
-                $query->withoutOwnerScope();
-            }
-
-            $order = $query->find($item->order_id);
+            // Always fetch the parent order without scope to allow cross-owner detection.
+            $order = JntOrder::query()->withoutOwnerScope()->find($item->order_id);
 
             if ($order === null) {
                 throw new InvalidArgumentException('Invalid order_id for JntOrderItem.');
             }
 
+            if ($item->owner_type !== null || $item->owner_id !== null) {
+                // Owner was already set (e.g. by auto-assign from context).
+                // Validate that the parent order belongs to the same owner.
+                if ($order->owner_type !== $item->owner_type
+                    || (string) $order->owner_id !== (string) $item->owner_id) {
+                    throw new InvalidArgumentException(
+                        'JntOrderItem order_id belongs to a different owner than the current context.',
+                    );
+                }
+
+                return;
+            }
+
+            // Propagate owner from parent order.
             $item->owner_type = $order->owner_type;
             $item->owner_id = $order->owner_id;
         });

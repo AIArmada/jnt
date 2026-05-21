@@ -4,36 +4,54 @@ declare(strict_types=1);
 
 namespace AIArmada\Jnt\Webhooks;
 
+use AIArmada\CommerceSupport\Webhooks\CommerceSignatureValidator;
 use Illuminate\Http\Request;
-use Spatie\WebhookClient\SignatureValidator\SignatureValidator;
-use Spatie\WebhookClient\WebhookConfig;
 
-final class JntSpatieSignatureValidator implements SignatureValidator
+final class JntSpatieSignatureValidator extends CommerceSignatureValidator
 {
-    public function isValid(Request $request, WebhookConfig $config): bool
+    protected function getSignatureHeader(): string
+    {
+        return 'digest';
+    }
+
+    protected function validateSignature(Request $request, string $signature, string $secret): bool
     {
         if (! config('jnt.webhooks.verify_signature', true)) {
             return true;
         }
 
-        $signature = (string) $request->header('digest', '');
-        $bizContent = (string) $request->input('bizContent', '');
-        $privateKey = (string) config('jnt.private_key', '');
+        $runtimeSecret = (string) config('jnt.private_key', '');
 
-        if ($signature === '' || $signature === '0') {
+        if ($runtimeSecret !== '') {
+            $secret = $runtimeSecret;
+        }
+
+        if ($secret === '') {
             return false;
         }
+
+        $bizContent = $this->getPayloadForSigning($request);
 
         if ($bizContent === '' || $bizContent === '0') {
             return false;
         }
 
-        if ($privateKey === '') {
-            return false;
-        }
+        return parent::validateSignature($request, $signature, $secret);
+    }
 
-        $expected = base64_encode(md5($bizContent . $privateKey, true));
+    protected function getPayloadForSigning(Request $request): string
+    {
+        return (string) $request->input('bizContent', '');
+    }
 
-        return hash_equals($expected, $signature);
+    protected function computeSignature(string $payload, string $secret): string
+    {
+        return base64_encode(md5($payload . $secret, true));
+    }
+
+    protected function getHashAlgorithm(): string
+    {
+        // Not used because computeSignature is overridden for J&T MD5 + Base64 signing.
+        return 'md5';
     }
 }
