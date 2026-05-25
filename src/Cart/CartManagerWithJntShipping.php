@@ -6,7 +6,6 @@ namespace AIArmada\Jnt\Cart;
 
 use AIArmada\Cart\Cart;
 use AIArmada\Cart\Contracts\CartManagerInterface;
-use AIArmada\Cart\Storage\StorageInterface;
 use AIArmada\Jnt\Data\AddressData;
 use Illuminate\Database\Eloquent\Model;
 
@@ -109,11 +108,6 @@ final class CartManagerWithJntShipping implements CartManagerInterface
     public function getOwnerId(): string | int | null
     {
         return $this->manager->getOwnerId();
-    }
-
-    public function session(?string $sessionKey = null): StorageInterface
-    {
-        return $this->manager->session($sessionKey);
     }
 
     public function getById(string $uuid): ?Cart

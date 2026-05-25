@@ -4,6 +4,42 @@ title: Overview
 
 # J&T Express Integration
 
+## Purpose
+
+The `aiarmada/jnt` package is the J&T Express Malaysia carrier adapter for the Commerce shipping stack.
+
+## What this package owns
+
+- J&T-specific API integration, request/response handling, and validation rules
+- J&T shipping orders, parcels, tracking events, and webhook logs
+- J&T-specific actions, builders, notifications, commands, and webhook processing
+- The J&T shipping driver implementation used by the shipping abstraction layer
+
+## What this package does not own
+
+- Generic shipment and rate-shopping abstraction; that belongs to `aiarmada/shipping`
+- Filament admin surfaces; those belong to `aiarmada/filament-jnt`
+- Checkout or order persistence beyond its shipping integration hooks
+
+## Related packages
+
+- [`aiarmada/shipping`](../../shipping/docs/01-overview.md) — carrier-agnostic shipping abstraction that J&T plugs into
+- [`aiarmada/filament-jnt`](../../filament-jnt/docs/01-overview.md) — Filament admin resources and actions for J&T operations
+- [`aiarmada/cart`](../../cart/docs/01-overview.md) — optional cart shipping-rate integration
+- [`aiarmada/commerce-support`](../../commerce-support/docs/01-overview.md) — owner scoping and shared utilities
+
+## Main models services or surfaces
+
+- **Models** — `JntOrder`, `JntOrderItem`, `JntOrderParcel`, `JntTrackingEvent`, `JntWebhookLog`
+- **Core surfaces** — J&T service, builders, HTTP client, shipping driver, commands, webhook handlers, and notifications
+- **Events** — order created/cancelled, tracking updates, parcel lifecycle events, and status changes
+
+## Owner scoping and security notes
+
+- J&T models are owner-aware and should follow the `commerce-support` owner-boundary rules
+- Webhooks, commands, and manual sync flows should re-enter the correct owner context before mutating orders or tracking records
+- Carrier webhooks and sync actions should not trust raw incoming bill codes without resolving the corresponding J&T records owner-safely
+
 A comprehensive Laravel package for integrating J&T Express Malaysia shipping services into your e-commerce applications.
 
 ## Features
@@ -147,3 +183,17 @@ php artisan jnt:webhook:test
 - **shipping** - Unified shipping abstraction layer
 - **cart** - Shopping cart with shipping support
 - **commerce-support** - Multi-tenancy and shared utilities
+
+## Read next
+
+- [Installation](02-installation.md)
+- [Configuration](03-configuration.md)
+- [Usage](04-usage.md)
+- [Tracking](05-tracking.md)
+- [Webhooks](06-webhooks.md)
+- [Batch operations](07-batch-operations.md)
+- [Events](08-events.md)
+- [Multitenancy](09-multitenancy.md)
+- [API reference](api-reference.md)
+- [Testing credentials](testing-credentials.md)
+- [Filament JNT overview](../../filament-jnt/docs/01-overview.md)

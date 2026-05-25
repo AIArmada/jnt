@@ -47,7 +47,7 @@ class ProcessJntWebhook extends CommerceWebhookProcessor
 
         $canonicalPayload = json_encode($biz, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
-        if (! is_string($canonicalPayload) || $canonicalPayload === '') {
+        if (! is_string($canonicalPayload)) {
             return null;
         }
 
@@ -417,7 +417,7 @@ class ProcessJntWebhook extends CommerceWebhookProcessor
 
         $payload = json_encode($normalized, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-        if (! is_string($payload) || $payload === '') {
+        if (! is_string($payload)) {
             return hash('sha256', serialize($normalized));
         }
 
