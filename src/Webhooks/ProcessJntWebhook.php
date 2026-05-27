@@ -15,6 +15,7 @@ use AIArmada\Jnt\Events\ParcelPickedUp;
 use AIArmada\Jnt\Events\TrackingUpdated;
 use AIArmada\Jnt\Models\JntOrder;
 use AIArmada\Jnt\Models\JntTrackingEvent;
+use AIArmada\Jnt\Models\JntWebhookLog;
 use AIArmada\Jnt\Services\JntStatusMapper;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
@@ -126,6 +127,8 @@ class ProcessJntWebhook extends CommerceWebhookProcessor
         $biz = $this->decodeBizContent($payload);
 
         if ($biz === null) {
+            $this->markWebhookLogAsFailed('Missing or invalid bizContent.');
+
             Log::channel(config('jnt.logging.channel', 'stack'))
                 ->warning('J&T webhook missing or invalid bizContent', [
                     'webhook_call_id' => $this->webhookCall->id,
@@ -137,6 +140,8 @@ class ProcessJntWebhook extends CommerceWebhookProcessor
         $billcode = $biz['billCode'] ?? null;
 
         if (empty($billcode)) {
+            $this->markWebhookLogAsFailed('Missing billcode.');
+
             $context = ['webhook_call_id' => $this->webhookCall->id];
 
             $context += (bool) config('jnt.webhooks.log_payloads', false)
@@ -156,6 +161,8 @@ class ProcessJntWebhook extends CommerceWebhookProcessor
             ->first();
 
         if (! $shipment) {
+            $this->syncWebhookLogMetadata(null, (string) $billcode, $biz);
+
             Log::channel(config('jnt.logging.channel', 'stack'))
                 ->info('J&T webhook for unknown shipment', [
                     'billcode' => $billcode,
@@ -172,6 +179,8 @@ class ProcessJntWebhook extends CommerceWebhookProcessor
             $shipment->owner_type,
             $shipment->owner_id,
         );
+
+        $this->syncWebhookLogMetadata($shipment, (string) $billcode, $biz);
 
         OwnerContext::withOwner($owner, function () use ($shipment, $billcode, $eventType, $biz): void {
             $latestDetail = $this->latestTrackingDetail($biz);
@@ -245,6 +254,83 @@ class ProcessJntWebhook extends CommerceWebhookProcessor
         }
 
         return $this->mapToStatus($eventType, $latestDetail ?? []);
+    }
+
+    /**
+     * @param  array<string, mixed>  $biz
+     */
+    private function syncWebhookLogMetadata(?JntOrder $shipment, string $billcode, array $biz): void
+    {
+        $attributes = [
+            'tracking_number' => $billcode,
+            'order_reference' => $shipment?->order_id ?? $this->extractOrderReference($biz),
+            'order_id' => $shipment?->id,
+            'digest' => $this->extractDigest(),
+            'processing_status' => JntWebhookLog::STATUS_PROCESSED,
+            'processing_error' => null,
+            'processed_at' => CarbonImmutable::now(),
+        ];
+
+        if ($shipment !== null) {
+            $attributes['owner_type'] = $shipment->owner_type;
+            $attributes['owner_id'] = $shipment->owner_id;
+        }
+
+        JntWebhookLog::query()
+            ->withoutOwnerScope()
+            ->whereKey($this->webhookCall->getKey())
+            ->update($attributes);
+    }
+
+    private function markWebhookLogAsFailed(string $error): void
+    {
+        JntWebhookLog::query()
+            ->withoutOwnerScope()
+            ->whereKey($this->webhookCall->getKey())
+            ->update([
+                'digest' => $this->extractDigest(),
+                'processing_status' => JntWebhookLog::STATUS_FAILED,
+                'processing_error' => $error,
+                'processed_at' => CarbonImmutable::now(),
+            ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $biz
+     */
+    private function extractOrderReference(array $biz): ?string
+    {
+        $reference = $biz['orderId'] ?? $biz['order_id'] ?? $biz['txlogisticId'] ?? null;
+
+        if (! is_scalar($reference)) {
+            return null;
+        }
+
+        $reference = mb_trim((string) $reference);
+
+        return $reference === '' ? null : mb_substr($reference, 0, 50);
+    }
+
+    private function extractDigest(): ?string
+    {
+        $headers = $this->webhookCall->headers;
+
+        if (! is_array($headers)) {
+            return null;
+        }
+
+        $digest = $headers['digest'][0]
+            ?? $headers['Digest'][0]
+            ?? $headers['DIGEST'][0]
+            ?? null;
+
+        if (! is_scalar($digest)) {
+            return null;
+        }
+
+        $digest = mb_trim((string) $digest);
+
+        return $digest === '' ? null : mb_substr($digest, 0, 255);
     }
 
     /**

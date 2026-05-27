@@ -102,6 +102,10 @@ class JntServiceProvider extends PackageServiceProvider
 
     protected function configureSpatieWebhookClient(): void
     {
+        if (! config('jnt.webhooks.enabled', true)) {
+            return;
+        }
+
         if (! class_exists(WebhookCall::class)) {
             return;
         }

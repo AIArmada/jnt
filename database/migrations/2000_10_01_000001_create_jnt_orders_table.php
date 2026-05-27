@@ -13,7 +13,7 @@ return new class extends Migration
     {
         $tableName = config('jnt.database.tables.orders', config('jnt.database.table_prefix', 'jnt_') . 'orders');
 
-        $jsonType = (string) commerce_json_column_type('jnt', 'json');
+        $jsonType = (string) commerce_json_column_type('jnt', 'jsonb');
 
         Schema::create($tableName, function (Blueprint $table) use ($jsonType): void {
             $table->uuid('id')->primary();
@@ -67,7 +67,7 @@ return new class extends Migration
         });
 
         // GIN indexes only work with jsonb in PostgreSQL
-        if ($jsonType === 'jsonb') {
+        if ($jsonType === 'jsonb' && DB::connection()->getDriverName() === 'pgsql') {
             Schema::table($tableName, function (Blueprint $table) use ($tableName): void {
                 DB::statement('CREATE INDEX jnt_orders_sender_gin_index ON ' . $tableName . ' USING GIN (sender)');
                 DB::statement('CREATE INDEX jnt_orders_receiver_gin_index ON ' . $tableName . ' USING GIN (receiver)');

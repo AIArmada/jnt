@@ -21,7 +21,6 @@ Configure table names and prefixes:
         'order_items' => null,    // Uses: jnt_order_items
         'order_parcels' => null,  // Uses: jnt_order_parcels
         'tracking_events' => null, // Uses: jnt_tracking_events
-        'webhook_logs' => null,   // Uses: jnt_webhook_logs
     ],
     
     // JSON column type for database compatibility

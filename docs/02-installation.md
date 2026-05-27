@@ -36,7 +36,7 @@ Run database migrations to create required tables:
 php artisan migrate
 ```
 
-This creates five tables:
+This creates four JNT tables plus the shared `webhook_calls` table when webhooks are enabled:
 
 | Table | Purpose |
 |-------|---------|
@@ -44,7 +44,7 @@ This creates five tables:
 | `jnt_order_items` | Individual items in shipments |
 | `jnt_order_parcels` | Multi-parcel tracking |
 | `jnt_tracking_events` | Tracking event history |
-| `jnt_webhook_logs` | Webhook request logging |
+| `webhook_calls` | Shared webhook request logging |
 
 ## Environment Variables
 

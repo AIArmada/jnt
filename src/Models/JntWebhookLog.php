@@ -8,14 +8,15 @@ use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 use InvalidArgumentException;
 
 /**
- * @property string $id
+ * @property int $id
+ * @property string $name
+ * @property string $url
  * @property string|null $order_id
  * @property string|null $tracking_number
  * @property string|null $order_reference
@@ -37,13 +38,21 @@ final class JntWebhookLog extends Model
 {
     use HasOwner;
     use HasOwnerScopeConfig;
-    use HasUuids;
+
+    public const WEBHOOK_NAME = 'jnt.webhooks.status';
 
     protected static string $ownerScopeConfigKey = 'jnt.owner';
 
     protected static function booted(): void
     {
+        static::addGlobalScope('jnt_webhook_calls', function (Builder $builder): void {
+            $builder->where('name', self::WEBHOOK_NAME);
+        });
+
         static::creating(function (JntWebhookLog $log): void {
+            $log->setAttribute('name', $log->getAttribute('name') ?? self::WEBHOOK_NAME);
+            $log->setAttribute('url', $log->getAttribute('url') ?? '');
+
             if ($log->order_id === null) {
                 return;
             }
@@ -81,6 +90,8 @@ final class JntWebhookLog extends Model
      * @var list<string>
      */
     protected $fillable = [
+        'name',
+        'url',
         'order_id',
         'tracking_number',
         'order_reference',
@@ -96,10 +107,7 @@ final class JntWebhookLog extends Model
 
     public function getTable(): string
     {
-        $tables = config('jnt.database.tables', []);
-        $prefix = config('jnt.database.table_prefix', 'jnt_');
-
-        return $tables['webhook_logs'] ?? $prefix . 'webhook_logs';
+        return 'webhook_calls';
     }
 
     /**
@@ -167,6 +175,7 @@ final class JntWebhookLog extends Model
         return [
             'headers' => 'array',
             'payload' => 'array',
+            'exception' => 'array',
             'processed_at' => 'datetime',
         ];
     }
