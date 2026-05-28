@@ -15,8 +15,7 @@ The JNT package dispatches Laravel events at key points in the shipping lifecycl
 | `OrderCreatedEvent` | Order submitted to J&T | `order`, tracking number |
 | `OrderCancelledEvent` | Order cancelled | `orderId`, `reason` |
 | `WaybillPrintedEvent` | Waybill generated | `waybill`, PDF content |
-| `TrackingUpdatedEvent` | Tracking synced via API | `tracking` data |
-| `TrackingStatusReceived` | Webhook received | `webhookData` |
+| `TrackingUpdated` | Webhook tracking update | `billcode`, `eventType`, `payload` |
 | `JntOrderStatusChanged` | Order status changes | `currentStatus`, `previousStatusCode` |
 | `ParcelPickedUp` | Parcel collected | `shipment` |
 | `ParcelInTransit` | Parcel in transit | `shipment` |
@@ -127,84 +126,31 @@ class HandleWaybillPrinted
 
 ## Tracking Events
 
-### TrackingUpdatedEvent
+### TrackingUpdated
 
-Fired when tracking information is synced via the API (not webhooks).
-
-```php
-use AIArmada\Jnt\Events\TrackingUpdatedEvent;
-
-class HandleTrackingUpdated
-{
-    public function handle(TrackingUpdatedEvent $event): void
-    {
-        $trackingNumber = $event->getTrackingNumber();
-        $orderId = $event->getOrderId();
-        
-        // Get status info
-        $latestStatus = $event->getLatestStatus();
-        $latestDescription = $event->getLatestDescription();
-        $latestLocation = $event->getLatestLocation();
-        
-        // Check delivery states
-        if ($event->isDelivered()) {
-            $this->handleDelivery($orderId);
-        }
-        
-        if ($event->hasProblems()) {
-            $this->alertOperations($orderId, $latestDescription);
-        }
-        
-        if ($event->isCollected()) {
-            $this->updatePickupStatus($orderId);
-        }
-        
-        // Iterate all tracking details
-        foreach ($event->getDetails() as $detail) {
-            logger()->info("Tracking: {$detail->description}", [
-                'time' => $detail->scanTime,
-                'type' => $detail->scanType,
-            ]);
-        }
-    }
-}
-```
-
-### TrackingStatusReceived
-
-Fired when a tracking update is received via webhook.
+Fired when a tracking update is received via webhook. This generic event is dispatched for both known and unknown shipments.
 
 ```php
-use AIArmada\Jnt\Events\TrackingStatusReceived;
+use AIArmada\Jnt\Events\TrackingUpdated;
 
 class HandleWebhookTracking
 {
-    public function handle(TrackingStatusReceived $event): void
+    public function handle(TrackingUpdated $event): void
     {
-        $billCode = $event->getBillCode();
-        $orderId = $event->getTxlogisticId();
-        
-        // Get latest status info
-        $status = $event->getLatestStatus();
-        $description = $event->getLatestDescription();
-        $location = $event->getLatestLocation();
-        $timestamp = $event->getLatestTimestamp();
-        
-        // Handle delivery states
-        if ($event->isDelivered()) {
-            $this->markAsDelivered($orderId);
-        }
-        
-        if ($event->isCollected()) {
-            $this->markAsPickedUp($orderId);
-        }
-        
-        if ($event->hasProblem()) {
-            $this->handleProblem($orderId, $description);
-        }
-        
-        // Access raw webhook data
-        $webhookData = $event->webhookData;
+        $billcode = $event->billcode;
+        $eventType = $event->eventType;
+        $payload = $event->payload;
+
+        $latestDetail = collect($payload['details'] ?? [])->last();
+        $latestStatus = is_array($latestDetail)
+            ? ($latestDetail['desc'] ?? $latestDetail['scanTypeName'] ?? $latestDetail['scanType'] ?? null)
+            : null;
+
+        logger()->info('Tracking update received', [
+            'billcode' => $billcode,
+            'event_type' => $eventType,
+            'latest_status' => $latestStatus,
+        ]);
     }
 }
 ```
@@ -386,8 +332,7 @@ class HandleDelivered
 
 use AIArmada\Jnt\Events\OrderCreatedEvent;
 use AIArmada\Jnt\Events\OrderCancelledEvent;
-use AIArmada\Jnt\Events\TrackingUpdatedEvent;
-use AIArmada\Jnt\Events\TrackingStatusReceived;
+use AIArmada\Jnt\Events\TrackingUpdated;
 use AIArmada\Jnt\Events\JntOrderStatusChanged;
 use AIArmada\Jnt\Events\ParcelDelivered;
 use AIArmada\Jnt\Events\WaybillPrintedEvent;
@@ -402,11 +347,7 @@ protected $listen = [
         \App\Listeners\HandleCancellation::class,
     ],
     
-    TrackingUpdatedEvent::class => [
-        \App\Listeners\SyncTrackingToOrder::class,
-    ],
-    
-    TrackingStatusReceived::class => [
+    TrackingUpdated::class => [
         \App\Listeners\ProcessWebhookTracking::class,
     ],
     
@@ -450,21 +391,21 @@ For better performance, queue your event listeners:
 
 ```php
 use Illuminate\Contracts\Queue\ShouldQueue;
-use AIArmada\Jnt\Events\TrackingStatusReceived;
+use AIArmada\Jnt\Events\TrackingUpdated;
 
 class ProcessWebhookTracking implements ShouldQueue
 {
     public string $queue = 'jnt-tracking';
     
-    public function handle(TrackingStatusReceived $event): void
+    public function handle(TrackingUpdated $event): void
     {
         // This runs in the background
     }
     
-    public function failed(TrackingStatusReceived $event, \Throwable $exception): void
+    public function failed(TrackingUpdated $event, \Throwable $exception): void
     {
         logger()->error('Failed to process webhook', [
-            'billCode' => $event->getBillCode(),
+            'billCode' => $event->billcode,
             'error' => $exception->getMessage(),
         ]);
     }

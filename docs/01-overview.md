@@ -137,7 +137,7 @@ The package dispatches events at key lifecycle points:
 
 - `OrderCreatedEvent` - New order created successfully
 - `OrderCancelledEvent` - Order was cancelled
-- `TrackingUpdatedEvent` - Tracking information updated
+- `TrackingUpdated` - Generic tracking update from webhook processing
 - `JntOrderStatusChanged` - Order status changed
 - `ParcelPickedUp` - Parcel collected by courier
 - `ParcelInTransit` - Parcel in transit

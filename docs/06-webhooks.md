@@ -22,21 +22,21 @@ JNT_WEBHOOK_LOG_PAYLOADS=false  # Enable for debugging only
 namespace App\Listeners;
 
 use App\Models\Order;
-use AIArmada\Jnt\Events\TrackingStatusReceived;
+use AIArmada\Jnt\Events\TrackingUpdated;
 
 class UpdateOrderTracking
 {
-    public function handle(TrackingStatusReceived $event): void
+    public function handle(TrackingUpdated $event): void
     {
-        $order = Order::where('tracking_number', $event->trackingNumber)->first();
+        $order = Order::where('tracking_number', $event->billcode)->first();
         
         if (!$order) {
             return;
         }
 
         $order->update([
-            'tracking_status' => $event->lastStatus,
-            'tracking_time' => $event->scanTime,
+            'tracking_status' => $event->eventType,
+            'tracking_payload' => $event->payload,
         ]);
     }
 }
@@ -47,7 +47,7 @@ class UpdateOrderTracking
 ```php
 // app/Providers/EventServiceProvider.php
 protected $listen = [
-    \AIArmada\Jnt\Events\TrackingStatusReceived::class => [
+    \AIArmada\Jnt\Events\TrackingUpdated::class => [
         \App\Listeners\UpdateOrderTracking::class,
     ],
 ];
@@ -65,17 +65,42 @@ https://yourdomain.com/webhooks/jnt/status
 
 ## Event Data
 
-The `TrackingStatusReceived` event provides:
+The generic `TrackingUpdated` event is always dispatched, even when the shipment is not yet known locally:
 
 ```php
-$event->trackingNumber;   // J&T tracking number
-$event->orderId;          // Your order ID
-$event->lastStatus;       // Latest status description
-$event->scanTime;         // Timestamp of update
-$event->allStatuses;      // Array of all status updates
-$event->isDelivered();    // true if delivered
-$event->hasProblem();     // true if issue detected
+$event->billcode;   // J&T tracking number
+$event->eventType;  // scanType / derived webhook event type
+$event->payload;    // Decoded bizContent payload
 ```
+
+When the webhook can be matched to a shipment, the processor also dispatches status-specific events:
+
+- `ParcelPickedUp`
+- `ParcelInTransit`
+- `ParcelOutForDelivery`
+- `ParcelDelivered`
+
+Those status-specific events expose the shipment model directly:
+
+```php
+$event->shipment;           // JntOrder model
+$event->getShipmentId();    // Shipment primary key
+$event->getTrackingNumber();
+```
+
+## Webhook log records
+
+Every delivery is written to `JntWebhookLog`, which uses the shared `webhook_calls` table under the hood. During processing the package updates the log row with:
+
+- `tracking_number`
+- `order_reference`
+- `order_id` when the shipment is known
+- `digest`
+- `processing_status` (`pending`, `processed`, or `failed`)
+- `processing_error`
+- `processed_at`
+
+Unknown shipments still update the webhook log metadata and dispatch `TrackingUpdated`, which makes webhook logs useful even before a local order record exists.
 
 ---
 
@@ -84,23 +109,25 @@ $event->hasProblem();     // true if issue detected
 ### Customer Notifications
 
 ```php
+use AIArmada\Jnt\Events\ParcelDelivered;
+
 class NotifyCustomer
 {
-    public function handle(TrackingStatusReceived $event): void
+    public function handle(ParcelDelivered $event): void
     {
-        $order = Order::where('tracking_number', $event->trackingNumber)->first();
-        
-        if (!$order) {
+        $shipment = $event->shipment;
+
+        if (! $shipment->relationLoaded('order')) {
+            $shipment->loadMissing('order');
+        }
+
+        $order = $shipment->order;
+
+        if ($order === null) {
             return;
         }
 
-        match (true) {
-            $event->isDelivered() => 
-                $order->user->notify(new OrderDelivered($order)),
-            $event->hasProblem() => 
-                $order->user->notify(new OrderHasProblem($order)),
-            default => null,
-        };
+        $order->user?->notify(new OrderDelivered($order));
     }
 }
 ```
@@ -114,7 +141,7 @@ class ProcessWebhook implements ShouldQueue
 {
     public string $queue = 'webhooks';
     
-    public function handle(TrackingStatusReceived $event): void
+    public function handle(TrackingUpdated $event): void
     {
         // Heavy processing runs in background
     }
@@ -126,13 +153,12 @@ class ProcessWebhook implements ShouldQueue
 ```php
 class LogTrackingHistory
 {
-    public function handle(TrackingStatusReceived $event): void
+    public function handle(TrackingUpdated $event): void
     {
-        foreach ($event->allStatuses as $status) {
+        foreach (($event->payload['details'] ?? []) as $status) {
             TrackingEvent::create([
-                'order_id' => $event->orderId,
-                'tracking_number' => $event->trackingNumber,
-                'status' => $status['description'],
+                'tracking_number' => $event->billcode,
+                'status' => $status['desc'] ?? $status['scanTypeName'] ?? $status['scanType'] ?? 'unknown',
                 'timestamp' => $status['scanTime'],
                 'location' => $status['scanNetworkCity'] ?? null,
             ]);
@@ -233,7 +259,7 @@ php artisan config:clear
 **Verify listener registered:**
 ```php
 // EventServiceProvider.php must have:
-\AIArmada\Jnt\Events\TrackingStatusReceived::class => [
+\AIArmada\Jnt\Events\TrackingUpdated::class => [
     \App\Listeners\YourListener::class,
 ],
 ```
@@ -260,7 +286,7 @@ tail -f storage/logs/laravel.log | grep "J&T"
 
 ### Signature Verification
 
-Automatic via middleware. To disable (not recommended):
+Handled by the package's webhook verification flow. To disable (not recommended):
 
 ```php
 // config/jnt.php
@@ -300,8 +326,8 @@ class WhitelistJntIPs
 'webhooks' => [
     'enabled' => env('JNT_WEBHOOKS_ENABLED', true),
     'route' => env('JNT_WEBHOOK_ROUTE', 'webhooks/jnt/status'),
-    'middleware' => ['api', 'jnt.verify.signature'],
-    'verify_signature' => env('JNT_WEBHOOK_VERIFY_SIGNATURE', true),
+    'middleware' => ['api'],
+    'verify_signature' => env('JNT_WEBHOOKS_VERIFY_SIGNATURE', true),
     'log_payloads' => env('JNT_WEBHOOK_LOG_PAYLOADS', false),
 ],
 ```

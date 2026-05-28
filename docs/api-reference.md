@@ -289,22 +289,18 @@ try {
 
 ## Events
 
-### TrackingStatusReceived
+### TrackingUpdated
 
-Dispatched when webhook receives a tracking update.
+Dispatched when the webhook processor receives a tracking update.
 
 ```php
-use AIArmada\Jnt\Events\TrackingStatusReceived;
+use AIArmada\Jnt\Events\TrackingUpdated;
 
-public function handle(TrackingStatusReceived $event): void
+public function handle(TrackingUpdated $event): void
 {
-    $event->trackingNumber;   // J&T tracking number
-    $event->orderId;          // Your order ID
-    $event->lastStatus;       // Latest status
-    $event->scanTime;         // Timestamp
-    $event->allStatuses;      // All updates
-    $event->isDelivered();    // true if delivered
-    $event->hasProblem();     // true if issue
+    $event->billcode;   // J&T tracking number
+    $event->eventType;  // Scan type / derived event name
+    $event->payload;    // Decoded bizContent payload
 }
 ```
 
