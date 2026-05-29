@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\Jnt\Models;
 
+use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use AIArmada\Jnt\Enums\ScanTypeCode;
@@ -70,6 +71,7 @@ final class JntTrackingEvent extends Model
     use HasOwner;
     use HasOwnerScopeConfig;
     use HasUuids;
+    use LogsCommerceActivity;
 
     protected static string $ownerScopeConfigKey = 'jnt.owner';
 

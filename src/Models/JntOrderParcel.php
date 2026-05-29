@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace AIArmada\Jnt\Models;
 
+use AIArmada\CommerceSupport\Concerns\HasCommerceAudit;
+use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use Illuminate\Database\Eloquent\Builder;
@@ -12,6 +14,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 use InvalidArgumentException;
+use OwenIt\Auditing\Contracts\Auditable;
 
 /**
  * @property string $id
@@ -31,11 +34,13 @@ use InvalidArgumentException;
  *
  * @method static Builder<static> forOwner(?Model $owner, bool $includeGlobal = true)
  */
-final class JntOrderParcel extends Model
+final class JntOrderParcel extends Model implements Auditable
 {
+    use HasCommerceAudit;
     use HasOwner;
     use HasOwnerScopeConfig;
     use HasUuids;
+    use LogsCommerceActivity;
 
     protected static string $ownerScopeConfigKey = 'jnt.owner';
 

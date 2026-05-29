@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\Jnt\Models;
 
+use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use Carbon\CarbonImmutable;
@@ -38,6 +39,7 @@ final class JntWebhookLog extends Model
 {
     use HasOwner;
     use HasOwnerScopeConfig;
+    use LogsCommerceActivity;
 
     public const WEBHOOK_NAME = 'jnt.webhooks.status';
 
