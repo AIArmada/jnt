@@ -38,14 +38,14 @@ return new class extends Migration
             $table->decimal('offer_value', 12, 2)->nullable();
             $table->decimal('cod_value', 12, 2)->nullable();
             $table->decimal('insurance_value', 12, 2)->nullable();
-            $table->timestamp('pickup_start_at')->nullable();
-            $table->timestamp('pickup_end_at')->nullable();
-            $table->timestamp('ordered_at')->nullable()
+            $table->timestampTz('pickup_start_at')->nullable();
+            $table->timestampTz('pickup_end_at')->nullable();
+            $table->timestampTz('ordered_at')->nullable()
                 ->comment('Original order creation time reported by J&T');
-            $table->timestamp('last_synced_at')->nullable();
-            $table->timestamp('last_tracked_at')->nullable();
-            $table->timestamp('delivered_at')->nullable()->index();
-            $table->timestamp('cancelled_at')->nullable()->index();
+            $table->timestampTz('last_synced_at')->nullable();
+            $table->timestampTz('last_tracked_at')->nullable();
+            $table->timestampTz('delivered_at')->nullable()->index();
+            $table->timestampTz('cancelled_at')->nullable()->index();
             $table->string('cancellation_reason', 255)->nullable();
             $table->string('last_status_code', 32)->nullable()->index();
             $table->string('last_status', 128)->nullable();
@@ -60,7 +60,7 @@ return new class extends Migration
             $table->{$jsonType}('response_payload')->nullable();
             $table->{$jsonType}('metadata')->nullable();
             $table->nullableMorphs('owner');
-            $table->timestamps();
+            $table->timestampsTz();
 
             $table->index(['status', 'customer_code'], 'jnt_orders_customer_status_idx');
             $table->index(['status', 'created_at'], 'jnt_orders_status_date_idx');

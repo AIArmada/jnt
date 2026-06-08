@@ -27,7 +27,7 @@ return new class extends Migration
             $table->decimal('height', 8, 2)->nullable();
             $table->{$jsonType}('metadata')->nullable();
             $table->nullableMorphs('owner');
-            $table->timestamps();
+            $table->timestampsTz();
 
             $table->unique(['order_id', 'tracking_number']);
             $table->index(['tracking_number']);

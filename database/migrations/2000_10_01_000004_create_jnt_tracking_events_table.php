@@ -24,7 +24,7 @@ return new class extends Migration
             $table->string('scan_type_code', 32)->nullable()->index();
             $table->string('scan_type_name', 128)->nullable();
             $table->string('scan_type', 128)->nullable();
-            $table->timestamp('scan_time')->nullable()->index();
+            $table->timestampTz('scan_time')->nullable()->index();
             $table->text('description')->nullable();
             $table->string('scan_network_type_name', 128)->nullable();
             $table->string('scan_network_name', 128)->nullable();
@@ -58,7 +58,7 @@ return new class extends Migration
             $jsonType = (string) commerce_json_column_type('jnt', 'jsonb');
             $table->{$jsonType}('payload')->nullable();
             $table->nullableMorphs('owner');
-            $table->timestamps();
+            $table->timestampsTz();
 
             $table->index(['tracking_number', 'scan_time'], 'jnt_tracking_events_timeline_idx');
             $table->index(['order_id', 'scan_time'], 'jnt_tracking_events_order_history_idx');

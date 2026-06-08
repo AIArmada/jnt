@@ -28,7 +28,7 @@ return new class extends Migration
             $table->string('currency', 3)->default('MYR')->index();
             $table->{$jsonType}('metadata')->nullable();
             $table->nullableMorphs('owner');
-            $table->timestamps();
+            $table->timestampsTz();
 
             $table->index(['order_id', 'name']);
         });
