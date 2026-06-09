@@ -7,13 +7,13 @@ namespace AIArmada\Jnt;
 use AIArmada\Cart\Conditions\ConditionProviderRegistry;
 use AIArmada\Jnt\Cart\JntShippingCalculator;
 use AIArmada\Jnt\Cart\JntShippingConditionProvider;
-use AIArmada\Jnt\Console\Commands\ConfigCheckCommand;
-use AIArmada\Jnt\Console\Commands\HealthCheckCommand;
-use AIArmada\Jnt\Console\Commands\OrderCancelCommand;
-use AIArmada\Jnt\Console\Commands\OrderCreateCommand;
-use AIArmada\Jnt\Console\Commands\OrderPrintCommand;
-use AIArmada\Jnt\Console\Commands\OrderTrackCommand;
-use AIArmada\Jnt\Console\Commands\WebhookTestCommand;
+use AIArmada\Jnt\Console\Commands\Health\HealthCheckCommand;
+use AIArmada\Jnt\Console\Commands\Orders\ConfigCheckCommand;
+use AIArmada\Jnt\Console\Commands\Orders\OrderCancelCommand;
+use AIArmada\Jnt\Console\Commands\Orders\OrderCreateCommand;
+use AIArmada\Jnt\Console\Commands\Orders\OrderPrintCommand;
+use AIArmada\Jnt\Console\Commands\Tracking\OrderTrackCommand;
+use AIArmada\Jnt\Console\Commands\Webhooks\WebhookTestCommand;
 use AIArmada\Jnt\Events\JntOrderStatusChanged;
 use AIArmada\Jnt\Listeners\SendShipmentNotifications;
 use AIArmada\Jnt\Services\JntExpressService;
@@ -22,6 +22,7 @@ use AIArmada\Jnt\Services\JntTrackingService;
 use AIArmada\Jnt\Services\WebhookService;
 use AIArmada\Jnt\Shipping\JntShippingDriver;
 use AIArmada\Jnt\Support\Integrations\CartIntegrationRegistrar;
+use AIArmada\Jnt\Support\StatusMappingStrategyRegistry;
 use AIArmada\Jnt\Webhooks\JntSpatieSignatureValidator;
 use AIArmada\Jnt\Webhooks\JntWebhookProfile;
 use AIArmada\Jnt\Webhooks\JntWebhookResponse;
@@ -188,6 +189,15 @@ class JntServiceProvider extends PackageServiceProvider
         // Register status mapper service
         $this->app->singleton(JntStatusMapper::class, fn (): JntStatusMapper => new JntStatusMapper);
         $this->app->alias(JntStatusMapper::class, 'jnt.status-mapper');
+
+        // Register status mapping strategy registry and register JNT's strategy
+        $this->app->singleton(StatusMappingStrategyRegistry::class, function (): StatusMappingStrategyRegistry {
+            $registry = new StatusMappingStrategyRegistry;
+
+            $registry->register(app(JntStatusMapper::class));
+
+            return $registry;
+        });
 
         // Register tracking service
         $this->app->singleton(JntTrackingService::class, fn (Application $app): JntTrackingService => new JntTrackingService(

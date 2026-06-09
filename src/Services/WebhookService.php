@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace AIArmada\Jnt\Services;
 
+use AIArmada\Jnt\Data\TrackingData;
 use AIArmada\Jnt\Data\WebhookData;
 use AIArmada\Jnt\Exceptions\JntConfigurationException;
+use AIArmada\Jnt\Exceptions\JntValidationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -160,5 +162,31 @@ class WebhookService
         }
 
         return $this->parseWebhook($request);
+    }
+
+    /**
+     * Parse webhook payload into TrackingData objects.
+     *
+     * @param  array<string, mixed>  $webhookData
+     * @return array<TrackingData>
+     */
+    public function parseBizContent(array $webhookData): array
+    {
+        if (! isset($webhookData['bizContent'])) {
+            throw JntValidationException::requiredFieldMissing('bizContent');
+        }
+
+        $bizContent = is_string($webhookData['bizContent'])
+            ? json_decode($webhookData['bizContent'], true)
+            : $webhookData['bizContent'];
+
+        if (! is_array($bizContent)) {
+            throw JntValidationException::invalidFormat('bizContent', 'valid JSON array', gettype($bizContent));
+        }
+
+        return array_map(
+            fn (array $item): TrackingData => TrackingData::fromApiArray($item),
+            $bizContent
+        );
     }
 }

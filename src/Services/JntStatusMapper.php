@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\Jnt\Services;
 
+use AIArmada\Jnt\Contracts\StatusMappingStrategyInterface;
 use AIArmada\Jnt\Enums\ScanTypeCode;
 use AIArmada\Jnt\Enums\TrackingStatus;
 use AIArmada\Shipping\Contracts\StatusMapperInterface;
@@ -12,10 +13,11 @@ use AIArmada\Shipping\Enums\TrackingStatus as NormalizedTrackingStatus;
 /**
  * Maps J&T Express scan type codes to normalized tracking statuses.
  *
- * Implements StatusMapperInterface from the shipping package for
+ * Implements both StatusMapperInterface (shipping package) and
+ * StatusMappingStrategyInterface (carrier-strategy seam) for
  * carrier-agnostic tracking status normalization.
  */
-class JntStatusMapper implements StatusMapperInterface
+class JntStatusMapper implements StatusMapperInterface, StatusMappingStrategyInterface
 {
     public function getCarrierCode(): string
     {
