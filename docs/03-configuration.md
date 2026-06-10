@@ -253,6 +253,37 @@ Configure local rate calculation:
 ],
 ```
 
+## Status Mapping Strategy Registry
+
+The status mapping system lets carriers register their own strategies for normalizing tracking event codes. Strategies are registered at runtime through the service provider, but you can also register custom strategies in your own service provider.
+
+### How Strategies Are Registered
+
+The package registers J&T's own strategy (`JntStatusMapper`) with carrier code `jnt` during boot. You can register additional carrier strategies in your `AppServiceProvider`:
+
+```php
+use AIArmada\Jnt\Support\StatusMappingStrategyRegistry;
+
+public function boot(): void
+{
+    $registry = app(StatusMappingStrategyRegistry::class);
+    $registry->register(new MyCustomCarrierStrategy());
+}
+```
+
+### Configuring the JntStatusMapper Carrier Code
+
+To change the carrier code used by the built-in J&T strategy (default: `jnt`), set it in your config:
+
+```php
+// config/jnt.php
+'status_mapping' => [
+    'carrier_code' => 'jnt',
+],
+```
+
+When omitted, the default carrier code `jnt` is used. The carrier code must match the value returned by `getCarrierCode()` on the registered strategy.
+
 ## Complete Configuration Example
 
 ```php

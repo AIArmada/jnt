@@ -68,7 +68,14 @@ packages/jnt/
 │   ├── Actions/               # Action classes (CreateOrder, CancelOrder, etc.)
 │   ├── Builders/              # OrderBuilder for fluent order creation
 │   ├── Cart/                  # Cart shipping calculator integration
-│   ├── Console/Commands/      # Artisan commands
+│   ├── Console/
+│   │   ├── JntCommand.php     # Base class for all commands (provides $this->client())
+│   │   └── Commands/
+│   │       ├── health/        # Health check commands
+│   │       ├── orders/        # Order management commands
+│   │       ├── tracking/      # Tracking commands
+│   │       └── webhooks/      # Webhook testing commands
+│   ├── Contracts/             # Contracts and interfaces
 │   ├── Data/                  # Data Transfer Objects (Spatie Laravel Data)
 │   ├── Enums/                 # PHP 8.1+ enums for API values
 │   ├── Events/                # Laravel events
@@ -146,26 +153,27 @@ The package dispatches events at key lifecycle points:
 
 ## Artisan Commands
 
-```bash
-# Check configuration
-php artisan jnt:config:check
+All commands extend the abstract `JntCommand` base class (`Console/JntCommand.php`) which provides:
+- `$this->client()` — lazily resolved `JntClient` instance
+- `$this->withErrorHandling()` — wraps callbacks with exception handling
+- `$this->infoWithLabel()`, `$this->section()`, `$this->resultTable()` — output helpers
 
-# Health check
+Commands are organized into subdirectories by concern:
+
+```bash
+# Health
 php artisan jnt:health:check
 
-# Create order
+# Orders
 php artisan jnt:order:create {order-id}
-
-# Track order
 php artisan jnt:order:track {order-id}
-
-# Cancel order
 php artisan jnt:order:cancel {order-id}
-
-# Print waybill
 php artisan jnt:order:print {order-id}
 
-# Test webhook
+# Configuration
+php artisan jnt:config:check
+
+# Webhooks
 php artisan jnt:webhook:test
 ```
 

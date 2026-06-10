@@ -96,6 +96,17 @@ J&T provides separate environments:
 
 The package automatically uses the correct URL based on `JNT_ENVIRONMENT`.
 
+## Command Organization
+
+All Artisan commands extend the abstract `JntCommand` base class (`src/Console/JntCommand.php`), which provides a `$this->client()` helper for API access and `$this->withErrorHandling()` for consistent exception handling. Commands are organized by concern into subdirectories:
+
+| Subdirectory | Command(s) |
+|-------------|------------|
+| `health/` | `jnt:health:check` |
+| `orders/` | `jnt:order:create`, `jnt:order:track`, `jnt:order:cancel`, `jnt:order:print` |
+| `tracking/` | `jnt:order:track` (alias/entry) |
+| `webhooks/` | `jnt:webhook:test` |
+
 ## Verify Installation
 
 Run the configuration check command:

@@ -346,3 +346,84 @@ $mapper = app(JntStatusMapper::class);
 // Maps to shipping package's normalized status
 $normalizedStatus = $mapper->map('100'); // Returns NormalizedTrackingStatus::SignedFor
 ```
+
+## Status Mapping Strategy
+
+The package provides a strategy-based system for mapping carrier-specific tracking codes to normalized statuses, allowing multiple carriers to register their own mapping logic.
+
+### StatusMappingStrategyInterface
+
+Each carrier defines a strategy implementing `StatusMappingStrategyInterface`:
+
+```php
+use AIArmada\Jnt\Contracts\StatusMappingStrategyInterface;
+use AIArmada\Jnt\Enums\TrackingStatus;
+use AIArmada\Shipping\Enums\TrackingStatus as NormalizedTrackingStatus;
+
+class MyCarrierStrategy implements StatusMappingStrategyInterface
+{
+    public function getCarrierCode(): string
+    {
+        return 'my-carrier';
+    }
+
+    public function map(string $carrierEventCode): NormalizedTrackingStatus
+    {
+        return match ($carrierEventCode) {
+            'DELIVERED' => NormalizedTrackingStatus::SignedFor,
+            'PICKUP' => NormalizedTrackingStatus::Collected,
+            default => NormalizedTrackingStatus::InTransit,
+        };
+    }
+
+    public function resolve(?string $scanTypeCode = null, ?string $statusDescription = null): TrackingStatus
+    {
+        return match ($scanTypeCode) {
+            '100' => TrackingStatus::Delivered,
+            '10' => TrackingStatus::PickedUp,
+            default => TrackingStatus::InTransit,
+        };
+    }
+}
+```
+
+### StatusMappingStrategyRegistry
+
+Strategies are registered at runtime through `StatusMappingStrategyRegistry`:
+
+```php
+use AIArmada\Jnt\Support\StatusMappingStrategyRegistry;
+
+$registry = app(StatusMappingStrategyRegistry::class);
+$registry->register(new MyCarrierStrategy());
+
+// Resolve a strategy by carrier code
+$strategy = $registry->get('my-carrier');
+$status = $strategy->map('DELIVERED');
+
+// Check if a carrier has a registered strategy
+if ($registry->has('my-carrier')) {
+    // ...
+}
+
+// List all registered strategies
+$strategies = $registry->all();
+```
+
+### JntStatusMapper as Strategy
+
+`JntStatusMapper` implements both `StatusMapperInterface` (shipping abstraction) and `StatusMappingStrategyInterface` (strategy pattern), registering itself with carrier code `jnt`:
+
+```php
+use AIArmada\Jnt\Services\JntStatusMapper;
+
+$mapper = app(JntStatusMapper::class);
+
+echo $mapper->getCarrierCode(); // 'jnt'
+
+// Via the strategy interface
+$status = $mapper->map('100'); // NormalizedTrackingStatus::SignedFor
+
+// Via the package's own resolution
+$status = $mapper->resolve('100', 'Parcel Signed'); // TrackingStatus::Delivered
+```
