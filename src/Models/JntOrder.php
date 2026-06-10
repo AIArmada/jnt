@@ -46,9 +46,12 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property CarbonInterface|null $last_synced_at
  * @property CarbonInterface|null $last_tracked_at
  * @property CarbonInterface|null $delivered_at
+ * @property CarbonInterface|null $problem_at
+ * @property CarbonInterface|null $exception_at
+ * @property CarbonInterface|null $returned_at
+ * @property CarbonInterface|null $resolved_at
  * @property string|null $last_status_code
  * @property string|null $last_status
- * @property bool $has_problem
  * @property CarbonInterface|null $cancelled_at
  * @property string|null $cancellation_reason
  * @property string|null $remark
@@ -112,9 +115,12 @@ final class JntOrder extends Model implements Auditable
         'last_synced_at',
         'last_tracked_at',
         'delivered_at',
+        'problem_at',
+        'exception_at',
+        'returned_at',
+        'resolved_at',
         'last_status_code',
         'last_status',
-        'has_problem',
         'cancelled_at',
         'cancellation_reason',
         'remark',
@@ -191,7 +197,17 @@ final class JntOrder extends Model implements Auditable
      */
     public function hasProblem(): bool
     {
-        return $this->has_problem;
+        return $this->problem_at !== null;
+    }
+
+    public function isReturned(): bool
+    {
+        return $this->returned_at !== null;
+    }
+
+    public function isCancelled(): bool
+    {
+        return $this->cancelled_at !== null;
     }
 
     /**
@@ -254,13 +270,16 @@ final class JntOrder extends Model implements Auditable
     {
         return [
             'package_quantity' => 'integer',
-            'has_problem' => 'boolean',
             'pickup_start_at' => 'datetime',
             'pickup_end_at' => 'datetime',
             'ordered_at' => 'datetime',
             'last_synced_at' => 'datetime',
             'last_tracked_at' => 'datetime',
             'delivered_at' => 'datetime',
+            'problem_at' => 'datetime',
+            'exception_at' => 'datetime',
+            'returned_at' => 'datetime',
+            'resolved_at' => 'datetime',
             'cancelled_at' => 'datetime',
             'sender' => 'array',
             'receiver' => 'array',

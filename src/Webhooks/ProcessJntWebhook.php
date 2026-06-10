@@ -421,8 +421,28 @@ class ProcessJntWebhook extends CommerceWebhookProcessor
                 $updates['last_status'] = mb_substr($lastStatus, 0, 128);
             }
 
-            if (($latestDetail['problemType'] ?? null) !== null || $status === TrackingStatus::Exception) {
-                $updates['has_problem'] = true;
+            if (($latestDetail['problemType'] ?? null) !== null) {
+                if ($shipment->problem_at === null) {
+                    $updates['problem_at'] = CarbonImmutable::now();
+                }
+            }
+
+            if ($status === TrackingStatus::Exception) {
+                if ($shipment->problem_at === null) {
+                    $updates['problem_at'] = CarbonImmutable::now();
+                }
+                if ($shipment->exception_at === null) {
+                    $updates['exception_at'] = CarbonImmutable::now();
+                }
+            }
+
+            if ($status === TrackingStatus::Returned && $shipment->returned_at === null) {
+                $updates['returned_at'] = CarbonImmutable::now();
+            }
+
+            if (($latestDetail['problemType'] ?? null) === null && $status !== TrackingStatus::Exception && $shipment->problem_at !== null) {
+                $updates['resolved_at'] = CarbonImmutable::now();
+                $updates['problem_at'] = null;
             }
 
             if ($status === TrackingStatus::Delivered && $shipment->delivered_at === null) {
