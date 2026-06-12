@@ -49,7 +49,10 @@ return new class extends Migration
             $table->string('cancellation_reason', 255)->nullable();
             $table->string('last_status_code', 32)->nullable()->index();
             $table->string('last_status', 128)->nullable();
-            $table->boolean('has_problem')->default(false)->index();
+            $table->timestampTz('problem_at')->nullable();
+            $table->timestampTz('exception_at')->nullable();
+            $table->timestampTz('returned_at')->nullable();
+            $table->timestampTz('resolved_at')->nullable();
             $table->text('remark')->nullable();
             $table->{$jsonType}('sender')->nullable();
             $table->{$jsonType}('receiver')->nullable();
@@ -66,7 +69,6 @@ return new class extends Migration
             $table->index(['status', 'created_at'], 'jnt_orders_status_date_idx');
         });
 
-        // GIN indexes only work with jsonb in PostgreSQL
         if ($jsonType === 'jsonb' && DB::connection()->getDriverName() === 'pgsql') {
             Schema::table($tableName, function (Blueprint $table) use ($tableName): void {
                 DB::statement('CREATE INDEX jnt_orders_sender_gin_index ON ' . $tableName . ' USING GIN (sender)');
