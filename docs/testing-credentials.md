@@ -85,7 +85,7 @@ The conditional logic in `config/jnt.php`:
 Run the configuration check command to verify your setup:
 
 ```bash
-php artisan jnt:config-check
+php artisan jnt:config:check
 ```
 
 ## Migration Guide

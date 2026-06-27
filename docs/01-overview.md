@@ -162,7 +162,7 @@ Commands are organized into subdirectories by concern:
 
 ```bash
 # Health
-php artisan jnt:health:check
+php artisan jnt:health
 
 # Orders
 php artisan jnt:order:create {order-id}

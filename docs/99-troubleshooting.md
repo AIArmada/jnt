@@ -13,7 +13,7 @@ This guide covers common issues, error codes, and debugging techniques for the J
 Run the built-in configuration check command:
 
 ```bash
-php artisan jnt:config-check
+php artisan jnt:config:check
 ```
 
 This verifies:
@@ -60,7 +60,7 @@ This verifies:
 3. Check that `bizContent` is properly JSON-encoded
 4. Run the config check:
    ```bash
-   php artisan jnt:config-check
+   php artisan jnt:config:check
    ```
 
 ---
@@ -144,7 +144,7 @@ JNT_CUSTOMER_CODE=your_customer_code
 
 1. Manual sync:
    ```bash
-   php artisan jnt:track ORDER-123
+   php artisan jnt:order:track ORDER-123
    ```
 
 2. Check last sync time:
@@ -486,4 +486,4 @@ Before going to production, verify:
 - [ ] Queue workers running
 - [ ] Error logging configured
 - [ ] Owner scoping enabled (if multi-tenant)
-- [ ] Config check passes: `php artisan jnt:config-check`
+- [ ] Config check passes: `php artisan jnt:config:check`

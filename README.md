@@ -224,13 +224,13 @@ php artisan jnt:config:check
 php artisan jnt:health
 
 # Track parcel
-php artisan jnt:order:track --order-id=ORDER-123
+php artisan jnt:order:track ORDER-123
 
 # Cancel order
-php artisan jnt:order:cancel --order-id=ORDER-123 --reason="Out of stock"
+php artisan jnt:order:cancel ORDER-123 --reason=out_of_stock
 
 # Print waybill
-php artisan jnt:order:print --order-id=ORDER-123 --tracking-number=JT123456
+php artisan jnt:order:print ORDER-123 --tracking-number=JT123456
 ```
 
 ---
