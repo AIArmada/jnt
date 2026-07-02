@@ -24,7 +24,7 @@ Configure table names and prefixes:
     ],
     
     // JSON column type for database compatibility
-    'json_column_type' => 'json',
+    'json_column_type' => env('JNT_JSON_COLUMN_TYPE', env('COMMERCE_JSON_COLUMN_TYPE', 'jsonb')),
 ],
 ```
 
@@ -298,7 +298,7 @@ return [
     'database' => [
         'table_prefix' => 'jnt_',
         'tables' => [],
-        'json_column_type' => 'json',
+'json_column_type' => env('JNT_JSON_COLUMN_TYPE', env('COMMERCE_JSON_COLUMN_TYPE', 'jsonb')),
     ],
 
     /*
