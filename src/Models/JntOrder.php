@@ -9,6 +9,7 @@ use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
+use AIArmada\Jnt\Enums\TrackingStatus;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -200,11 +201,17 @@ final class JntOrder extends Model implements Auditable
         return $this->problem_at !== null;
     }
 
+    /**
+     * Check if the order has been returned.
+     */
     public function isReturned(): bool
     {
         return $this->returned_at !== null;
     }
 
+    /**
+     * Check if the order has been cancelled.
+     */
     public function isCancelled(): bool
     {
         return $this->cancelled_at !== null;
@@ -270,6 +277,7 @@ final class JntOrder extends Model implements Auditable
     {
         return [
             'package_quantity' => 'integer',
+            'status' => TrackingStatus::class,
             'pickup_start_at' => 'datetime',
             'pickup_end_at' => 'datetime',
             'ordered_at' => 'datetime',

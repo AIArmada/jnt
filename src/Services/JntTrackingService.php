@@ -179,7 +179,7 @@ class JntTrackingService
                 $order->last_status = $latestDetail->description;
                 $order->last_tracked_at = CarbonImmutable::now();
 
-                // Set lifecycle timestamps based on tracking events
+                // Set lifecycle timestamps based on tracking event
                 if ($latestDetail->problemType !== null) {
                     if ($order->problem_at === null) {
                         $order->problem_at = CarbonImmutable::now();
@@ -199,6 +199,7 @@ class JntTrackingService
                     $order->returned_at = CarbonImmutable::now();
                 }
 
+                // Resolve problem if status is no longer problematic
                 if ($latestDetail->problemType === null && $currentStatus !== TrackingStatus::Exception && $order->problem_at !== null) {
                     $order->resolved_at = CarbonImmutable::now();
                     $order->problem_at = null;

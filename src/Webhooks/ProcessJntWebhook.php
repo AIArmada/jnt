@@ -440,6 +440,7 @@ class ProcessJntWebhook extends CommerceWebhookProcessor
                 $updates['returned_at'] = CarbonImmutable::now();
             }
 
+            // Resolve problem if status is no longer problematic
             if (($latestDetail['problemType'] ?? null) === null && $status !== TrackingStatus::Exception && $shipment->problem_at !== null) {
                 $updates['resolved_at'] = CarbonImmutable::now();
                 $updates['problem_at'] = null;
