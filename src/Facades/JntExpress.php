@@ -29,7 +29,6 @@ use Illuminate\Support\Facades\Facade;
  * @method static array<string, mixed> cancelOrder(string $orderId, string $reason, ?string $trackingNumber = null) Cancel an existing order with reason
  * @method static array<string, mixed> printOrder(string $orderId, ?string $trackingNumber = null, ?string $templateName = null) Generate waybill/shipping label for an order
  * @method static TrackingData trackParcel(?string $orderId = null, ?string $trackingNumber = null) Track parcel status by order ID or tracking number
- * @method static array<TrackingData> parseWebhookPayload(array<string, mixed> $webhookData) Parse webhook payload into TrackingData objects
  *
  * @throws JntValidationException When input validation fails (missing required fields, invalid formats, out of range values)
  * @throws JntApiException When J&T Express API returns an error (authentication failure, order not found, cancellation failure, etc.)

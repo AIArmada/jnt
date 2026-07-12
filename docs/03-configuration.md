@@ -23,9 +23,9 @@ Configure table names and prefixes:
         'tracking_events' => null, // Uses: jnt_tracking_events
     ],
     
-    // JSON column type for database compatibility
-    'json_column_type' => env('JNT_JSON_COLUMN_TYPE', env('COMMERCE_JSON_COLUMN_TYPE', 'jsonb')),
 ],
+```
+JSON column type is controlled by `commerce_json_column_type('jnt', 'json')`. Set `COMMERCE_JSON_COLUMN_TYPE` in your `.env` to override.
 ```
 
 ### Custom Table Names
@@ -298,7 +298,6 @@ return [
     'database' => [
         'table_prefix' => 'jnt_',
         'tables' => [],
-'json_column_type' => env('JNT_JSON_COLUMN_TYPE', env('COMMERCE_JSON_COLUMN_TYPE', 'jsonb')),
     ],
 
     /*

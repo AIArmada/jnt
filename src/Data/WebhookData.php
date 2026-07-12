@@ -108,15 +108,6 @@ class WebhookData extends Data
     }
 
     /**
-     * @see WebhookData::toJntAckResponse()
-     * @deprecated Use toJntAckResponse() instead
-     */
-    public function toJntResponse(): array
-    {
-        return $this->toJntAckResponse();
-    }
-
-    /**
      * Get the latest tracking update.
      */
     public function getLatestDetail(): ?TrackingDetailData

@@ -16,7 +16,6 @@ use AIArmada\Jnt\Exceptions\JntConfigurationException;
 use AIArmada\Jnt\Exceptions\JntValidationException;
 use AIArmada\Jnt\Http\JntClient;
 use AIArmada\Jnt\Support\FieldNameConverter;
-use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Concurrency;
 use Illuminate\Support\Str;
 use Throwable;
@@ -200,19 +199,6 @@ class JntExpressService
         $response = $this->getClient()->post('/api/logistics/trace', $payload);
 
         return TrackingData::fromApiArray($response['data']);
-    }
-
-    /**
-     * Parse webhook payload into TrackingData objects.
-     *
-     * @param  array<string, mixed>  $webhookData
-     * @return array<TrackingData>
-     *
-     * @deprecated 1.0.0 Use WebhookService::parseBizContent() instead.
-     */
-    public function parseWebhookPayload(array $webhookData): array
-    {
-        return App::make(WebhookService::class)->parseBizContent($webhookData);
     }
 
     /**

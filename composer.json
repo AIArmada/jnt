@@ -1,34 +1,38 @@
 {
-    "name": "aiarmada/jnt",
-    "description": "J&T Express Malaysia API Integration Package",
-    "license": "MIT",
-    "homepage": "https://github.com/aiarmada/commerce",
-    "support": {
-        "issues": "https://github.com/aiarmada/commerce/issues",
-        "source": "https://github.com/aiarmada/commerce"
-    },
-    "require": {
-        "aiarmada/commerce-support": "self.version",
-        "php": "^8.4"
-    },
-    "autoload": {
-        "psr-4": {
-            "AIArmada\\Jnt\\": "src/"
-        }
-    },
-    "extra": {
-        "laravel": {
-            "providers": [
-                "AIArmada\\Jnt\\JntServiceProvider"
-            ],
-            "aliases": {
-                "JntExpress": "AIArmada\\Jnt\\Facades\\JntExpress"
-            }
-        }
-    },
-    "minimum-stability": "dev",
-    "prefer-stable": true,
-    "config": {
-        "sort-packages": true
+  "name": "aiarmada/jnt",
+  "description": "J&T Express Malaysia API Integration Package",
+  "license": "MIT",
+  "homepage": "https://github.com/aiarmada/commerce",
+  "support": {
+    "issues": "https://github.com/aiarmada/commerce/issues",
+    "source": "https://github.com/aiarmada/commerce"
+  },
+  "require": {
+    "aiarmada/commerce-support": "self.version",
+    "php": "^8.4"
+  },
+  "autoload": {
+    "psr-4": {
+      "AIArmada\\Jnt\\": "src/"
     }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "AIArmada\\Jnt\\JntServiceProvider"
+      ],
+      "aliases": {
+        "JntExpress": "AIArmada\\Jnt\\Facades\\JntExpress"
+      }
+    }
+  },
+  "minimum-stability": "dev",
+  "prefer-stable": true,
+  "config": {
+    "sort-packages": true
+  },
+  "suggest": {
+    "aiarmada/cart": "Optional integration",
+    "aiarmada/shipping": "Optional integration"
+  }
 }

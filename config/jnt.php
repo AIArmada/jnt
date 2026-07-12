@@ -19,7 +19,7 @@ return [
     */
     'database' => [
         'table_prefix' => $tablePrefix,
-        'json_column_type' => env('JNT_JSON_COLUMN_TYPE', env('COMMERCE_JSON_COLUMN_TYPE', 'json')),
+
         'tables' => $tables,
     ],
 

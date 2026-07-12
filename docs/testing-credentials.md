@@ -2,123 +2,63 @@
 title: Testing Credentials
 ---
 
-# Testing Credentials Auto-Configuration
+# Testing Credentials
 
 ## Overview
-The J&T Express package now automatically configures testing credentials when running in testing environment, eliminating the need to manually copy/paste API credentials during development.
 
-## How It Works
+The J&T Express package does not bundle or automatically inject API credentials. Testing and production environments both read credentials from explicit configuration so applications cannot silently rely on shared or stale accounts.
 
-### For Testing Environment
-When `JNT_ENVIRONMENT=testing`, the package automatically uses J&T's official public testing credentials:
+## Testing Environment
 
-- **API Account**: `640826271705595946`
-- **Private Key**: `8e88c8477d4e4939859c560192fcafbc`
+Configure credentials issued for your J&T sandbox account:
 
-These are **public credentials** published by J&T Express for sandbox testing.
+```env
+JNT_ENVIRONMENT=testing
+JNT_API_ACCOUNT=your_testing_api_account
+JNT_PRIVATE_KEY=your_testing_private_key
+JNT_CUSTOMER_CODE=your_testing_customer_code
+JNT_PASSWORD=your_testing_password
+```
 
-### For Production Environment
-When `JNT_ENVIRONMENT=production`, you **must** explicitly provide your credentials:
+The default testing endpoint is configured by `JNT_BASE_URL_TESTING`. Override it only when J&T provides a different endpoint for your account.
+
+## Production Environment
+
+Production also requires explicit credentials:
 
 ```env
 JNT_ENVIRONMENT=production
 JNT_API_ACCOUNT=your_production_api_account
 JNT_PRIVATE_KEY=your_production_private_key
+JNT_CUSTOMER_CODE=your_production_customer_code
+JNT_PASSWORD=your_production_password
 ```
 
-## Quick Start
+Never reuse sandbox credentials in production or commit active credentials to version control.
 
-### Minimal Testing Setup
-Create your `.env` file with just these required fields:
+## Verification
 
-```env
-JNT_ENVIRONMENT=testing
-
-# Required credentials (get these from your J&T Distribution Partner)
-JNT_CUSTOMER_CODE=your_customer_code
-JNT_PASSWORD=your_password
-```
-
-That's it! The API Account and Private Key are automatically configured.
-
-### Optional: Override Testing Credentials
-If you need different testing credentials, you can still override them:
-
-```env
-JNT_ENVIRONMENT=testing
-
-# Override defaults with custom credentials
-JNT_API_ACCOUNT=custom_testing_account
-JNT_PRIVATE_KEY=custom_testing_key
-
-JNT_CUSTOMER_CODE=your_customer_code
-JNT_PASSWORD=your_password
-```
-
-## Benefits
-
-✅ **Faster Onboarding**: Start testing immediately with minimal configuration  
-✅ **Fewer Errors**: No copy/paste mistakes with long credential strings  
-✅ **Better Documentation**: README focuses on what developers actually need  
-✅ **Secure by Default**: Production still requires explicit credentials  
-
-## Implementation Details
-
-### Configuration Logic
-The conditional logic in `config/jnt.php`:
-
-```php
-'api_account' => env('JNT_API_ACCOUNT', 
-    env('JNT_ENVIRONMENT', 'testing') === 'testing' 
-        ? '640826271705595946'  // J&T official testing account
-        : null  // Require explicit value in production
-),
-
-'private_key' => env('JNT_PRIVATE_KEY',
-    env('JNT_ENVIRONMENT', 'testing') === 'testing'
-        ? '8e88c8477d4e4939859c560192fcafbc'  // J&T official testing key
-        : null  // Require explicit value in production
-),
-```
-
-### Verification
-Run the configuration check command to verify your setup:
+Run the package configuration check after updating the environment:
 
 ```bash
 php artisan jnt:config:check
 ```
 
-## Migration Guide
+Then clear cached configuration when applicable:
 
-### If You're Already Using This Package
+```bash
+php artisan config:clear
+```
 
-**No changes required!** Existing `.env` files will continue to work exactly as before.
+## Configuration Source
 
-### If You Want to Simplify Your Configuration
+The package reads these values directly from `packages/jnt/config/jnt.php`:
 
-1. Ensure `JNT_ENVIRONMENT=testing` is set
-2. Remove these lines from your `.env`:
-   ```env
-   # JNT_API_ACCOUNT=640826271705595946
-   # JNT_PRIVATE_KEY=8e88c8477d4e4939859c560192fcafbc
-   ```
-3. Clear config cache: `php artisan config:clear`
+```php
+'api_account' => env('JNT_API_ACCOUNT'),
+'private_key' => env('JNT_PRIVATE_KEY'),
+'customer_code' => env('JNT_CUSTOMER_CODE'),
+'password' => env('JNT_PASSWORD'),
+```
 
-## Security Notes
-
-- Testing credentials are **public information** from J&T's official documentation
-- These credentials only work with J&T's sandbox environment
-- Production credentials must **always** be explicitly configured
-- Never commit production credentials to version control
-
-## Reference
-
-- **Source**: J&T Express Official API Documentation
-- **Environment**: Sandbox/Testing Only
-- **Configuration File**: `packages/jnt/config/jnt.php`
-- **Documentation**: See README.md Configuration section
-
----
-
-**Last Updated**: 2025-06-09  
-**Feature Added**: Auto-configuration for testing credentials
+No fallback credential values are defined.
