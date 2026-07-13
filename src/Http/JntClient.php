@@ -36,19 +36,18 @@ class JntClient
         }
 
         $digest = $this->generateDigest($jsonBizContent);
-        $timestamp = (int) (microtime(true) * 1000);
 
         $this->logRequest($endpoint, $bizContent);
 
         $retryTimes = $this->config['http']['retry_times'] ?? 3;
         $retrySleep = $this->config['http']['retry_sleep'] ?? 1000;
 
-        try {
-            $response = Http::timeout($this->config['http']['timeout'] ?? 30)
+        $request = function () use ($endpoint, $jsonBizContent, $digest, $retryTimes, $retrySleep): \Illuminate\Http\Client\Response {
+            $timestamp = (int) (microtime(true) * 1000);
+
+            return Http::timeout($this->config['http']['timeout'] ?? 30)
                 ->connectTimeout($this->config['http']['connect_timeout'] ?? 10)
                 ->retry($retryTimes, $retrySleep, fn ($exception, $request): bool =>
-                    // Retry on connection exceptions
-                    // Don't retry for other exceptions
                     $exception instanceof ConnectionException, throw: false)
                 ->withHeaders([
                     'apiAccount' => $this->apiAccount,
@@ -59,25 +58,19 @@ class JntClient
                 ->post($this->baseUrl . $endpoint, [
                     'bizContent' => $jsonBizContent,
                 ]);
+        };
+
+        try {
+            $response = $request();
 
             $this->logResponse($response);
 
-            // If we got a 5xx error, retry manually
+            // If we got a 5xx error, retry manually with fresh timestamp
             if ($response->status() >= 500 && $response->status() < 600) {
                 for ($attempt = 2; $attempt <= $retryTimes; $attempt++) {
                     usleep($retrySleep * 1000);
 
-                    $response = Http::timeout($this->config['http']['timeout'] ?? 30)
-                        ->connectTimeout($this->config['http']['connect_timeout'] ?? 10)
-                        ->withHeaders([
-                            'apiAccount' => $this->apiAccount,
-                            'digest' => $digest,
-                            'timestamp' => (string) $timestamp,
-                        ])
-                        ->asForm()
-                        ->post($this->baseUrl . $endpoint, [
-                            'bizContent' => $jsonBizContent,
-                        ]);
+                    $response = $request();
 
                     $this->logResponse($response);
 
