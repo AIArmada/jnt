@@ -97,7 +97,9 @@ class ProcessJntWebhook extends CommerceWebhookProcessor
         $biz = $this->decodeBizContent($payload);
 
         if ($biz === null) {
-            return $payload['scantype'] ?? $payload['event'] ?? $payload['type'] ?? 'tracking.update';
+            $scanType = $payload['scantype'] ?? null;
+
+            return is_string($scanType) && $scanType !== '' ? $scanType : 'tracking.update';
         }
 
         $details = $biz['details'] ?? null;
@@ -114,7 +116,9 @@ class ProcessJntWebhook extends CommerceWebhookProcessor
             }
         }
 
-        return $payload['scantype'] ?? $payload['event'] ?? $payload['type'] ?? 'tracking.update';
+        $scanType = $payload['scantype'] ?? null;
+
+        return is_string($scanType) && $scanType !== '' ? $scanType : 'tracking.update';
     }
 
     /**

@@ -42,13 +42,12 @@ class JntClient
         $retryTimes = $this->config['http']['retry_times'] ?? 3;
         $retrySleep = $this->config['http']['retry_sleep'] ?? 1000;
 
-        $request = function () use ($endpoint, $jsonBizContent, $digest, $retryTimes, $retrySleep): \Illuminate\Http\Client\Response {
+        $request = function () use ($endpoint, $jsonBizContent, $digest, $retryTimes, $retrySleep): Response {
             $timestamp = (int) (microtime(true) * 1000);
 
             return Http::timeout($this->config['http']['timeout'] ?? 30)
                 ->connectTimeout($this->config['http']['connect_timeout'] ?? 10)
-                ->retry($retryTimes, $retrySleep, fn ($exception, $request): bool =>
-                    $exception instanceof ConnectionException, throw: false)
+                ->retry($retryTimes, $retrySleep, fn ($exception, $request): bool => $exception instanceof ConnectionException, throw: false)
                 ->withHeaders([
                     'apiAccount' => $this->apiAccount,
                     'digest' => $digest,
