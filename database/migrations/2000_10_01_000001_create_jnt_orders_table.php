@@ -15,7 +15,7 @@ return new class extends Migration
 
         $jsonType = (string) commerce_json_column_type('jnt', 'jsonb');
 
-        Schema::create($tableName, function (Blueprint $table) use ($jsonType): void {
+        commerce_schema_create_if_missing($tableName, function (Blueprint $table) use ($jsonType): void {
             $table->uuid('id')->primary();
             $table->string('order_id', 50)->unique();
             $table->string('tracking_number', 30)->nullable()->unique();
@@ -33,11 +33,11 @@ return new class extends Migration
             $table->decimal('package_length', 8, 2)->nullable();
             $table->decimal('package_width', 8, 2)->nullable();
             $table->decimal('package_height', 8, 2)->nullable();
-            $table->decimal('package_value', 12, 2)->nullable();
+            $table->unsignedBigInteger('package_value_minor')->nullable();
             $table->string('goods_type', 30)->nullable();
-            $table->decimal('offer_value', 12, 2)->nullable();
-            $table->decimal('cod_value', 12, 2)->nullable();
-            $table->decimal('insurance_value', 12, 2)->nullable();
+            $table->unsignedBigInteger('offer_value_minor')->nullable();
+            $table->unsignedBigInteger('cod_value_minor')->nullable();
+            $table->unsignedBigInteger('insurance_value_minor')->nullable();
             $table->timestampTz('pickup_start_at')->nullable();
             $table->timestampTz('pickup_end_at')->nullable();
             $table->timestampTz('ordered_at')->nullable()
@@ -71,9 +71,9 @@ return new class extends Migration
 
         if ($jsonType === 'jsonb' && DB::connection()->getDriverName() === 'pgsql') {
             Schema::table($tableName, function (Blueprint $table) use ($tableName): void {
-                DB::statement('CREATE INDEX jnt_orders_sender_gin_index ON ' . $tableName . ' USING GIN (sender)');
-                DB::statement('CREATE INDEX jnt_orders_receiver_gin_index ON ' . $tableName . ' USING GIN (receiver)');
-                DB::statement('CREATE INDEX jnt_orders_metadata_gin_index ON ' . $tableName . ' USING GIN (metadata)');
+                DB::statement('CREATE INDEX IF NOT EXISTS jnt_orders_sender_gin_index ON ' . $tableName . ' USING GIN (sender)');
+                DB::statement('CREATE INDEX IF NOT EXISTS jnt_orders_receiver_gin_index ON ' . $tableName . ' USING GIN (receiver)');
+                DB::statement('CREATE INDEX IF NOT EXISTS jnt_orders_metadata_gin_index ON ' . $tableName . ' USING GIN (metadata)');
             });
         }
     }

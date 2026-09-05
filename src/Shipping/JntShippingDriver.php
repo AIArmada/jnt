@@ -15,6 +15,7 @@ use AIArmada\Jnt\Exceptions\JntNetworkException;
 use AIArmada\Jnt\Services\JntExpressService;
 use AIArmada\Jnt\Services\JntStatusMapper;
 use AIArmada\Jnt\Services\JntTrackingService;
+use AIArmada\Jnt\Support\TypeTransformer;
 use AIArmada\Shipping\Contracts\AddressValidationResult;
 use AIArmada\Shipping\Contracts\ShippingDriverInterface;
 use AIArmada\Shipping\Data\AddressData;
@@ -29,7 +30,7 @@ use AIArmada\Shipping\Data\TrackingData;
 use AIArmada\Shipping\Data\TrackingEventData;
 use AIArmada\Shipping\Enums\DriverCapability;
 use AIArmada\Shipping\Enums\TrackingStatus;
-use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Throwable;
@@ -143,7 +144,7 @@ class JntShippingDriver implements ShippingDriverInterface
                 orderId: $data->reference,
                 additionalData: array_filter([
                     'codInfo' => $data->isCashOnDelivery()
-                        ? ['codValue' => $data->codAmount / 100]
+                        ? ['codValue' => TypeTransformer::forMoney($data->codAmount)]
                         : null,
                     'remark' => $data->instructions ?? '',
                 ], static fn (mixed $value): bool => $value !== null),
@@ -250,7 +251,7 @@ class JntShippingDriver implements ShippingDriverInterface
                 $jntStatus = $event['status'];
                 $normalizedStatus = $this->mapJntStatusToNormalized($jntStatus);
 
-                /** @var Carbon $occurredAt */
+                /** @var CarbonImmutable $occurredAt */
                 $occurredAt = $event['occurred_at'];
 
                 return new TrackingEventData(
@@ -322,7 +323,7 @@ class JntShippingDriver implements ShippingDriverInterface
                 name: $item->name,
                 quantity: $item->quantity,
                 weight: $item->weight ?? 0,
-                price: ($item->declaredValue ?? 0) / 100,
+                priceMinor: $item->declaredValue ?? 0,
             );
         }, $items);
     }
@@ -335,7 +336,7 @@ class JntShippingDriver implements ShippingDriverInterface
         return new PackageInfoData(
             quantity: 1,
             weight: round($data->getTotalWeight() / 1000, 2),
-            value: ($data->declaredValue ?? 0) / 100,
+            valueMinor: $data->declaredValue ?? 0,
             goodsType: GoodsType::PACKAGE,
         );
     }

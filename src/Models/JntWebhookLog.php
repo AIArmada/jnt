@@ -11,7 +11,6 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Carbon;
 use InvalidArgumentException;
 
 /**
@@ -26,11 +25,11 @@ use InvalidArgumentException;
  * @property array<string, mixed>|null $payload
  * @property string $processing_status
  * @property string|null $processing_error
- * @property Carbon|null $processed_at
+ * @property CarbonImmutable|null $processed_at
  * @property string|null $owner_type
  * @property string|null $owner_id
- * @property Carbon|null $created_at
- * @property Carbon|null $updated_at
+ * @property CarbonImmutable|null $created_at
+ * @property CarbonImmutable|null $updated_at
  * @property-read JntOrder|null $order
  *
  * @method static Builder<static> forOwner(?Model $owner, bool $includeGlobal = true)
@@ -178,7 +177,7 @@ final class JntWebhookLog extends Model
             'headers' => 'array',
             'payload' => 'array',
             'exception' => 'array',
-            'processed_at' => 'datetime',
+            'processed_at' => 'immutable_datetime',
         ];
     }
 }

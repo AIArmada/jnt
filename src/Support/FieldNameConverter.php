@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace AIArmada\Jnt\Support;
 
+use InvalidArgumentException;
+
 /**
  * Field Name Converter
  *
@@ -22,8 +24,8 @@ class FieldNameConverter
      * Field name mappings:
      * - Order level: orderId → txlogisticId, trackingNumber → billCode
      * - Address fields: state → prov
-     * - Item fields: name → itemName, quantity → number, price → itemValue, description → itemDesc
-     * - Package fields: quantity → packageQuantity, value → packageValue
+     * - Item fields: name → itemName, quantity → number, priceMinor → itemValue, description → itemDesc
+     * - Package fields: quantity → packageQuantity, valueMinor → packageValue
      *
      * @param  array<string, mixed>  $data  Order data with clean field names
      * @return array<string, mixed> Order data with J&T API field names
@@ -122,7 +124,7 @@ class FieldNameConverter
      * Mappings:
      * - name → itemName
      * - quantity → number
-     * - price → itemValue
+     * - priceMinor → itemValue
      * - description → itemDesc
      *
      * @param  array  $item  Item data with clean field names
@@ -133,11 +135,11 @@ class FieldNameConverter
      * $clean = [
      *     'name' => 'Widget',
      *     'quantity' => 2,
-     *     'price' => 99.99,
+     *     'priceMinor' => 9999,
      *     'description' => 'Test product'
      * ];
      * $api = FieldNameConverter::convertItem($clean);
-     * // Result: ['itemName' => 'Widget', 'number' => 2, 'itemValue' => 99.99, 'itemDesc' => 'Test product']
+     * // Result: ['itemName' => 'Widget', 'number' => 2, 'itemValue' => '99.99', 'itemDesc' => 'Test product']
      * ```
      */
     /**
@@ -158,9 +160,9 @@ class FieldNameConverter
             unset($converted['quantity']);
         }
 
-        if (isset($item['price'])) {
-            $converted['itemValue'] = $item['price'];
-            unset($converted['price']);
+        if (isset($item['priceMinor'])) {
+            $converted['itemValue'] = self::forMoney($item['priceMinor']);
+            unset($converted['priceMinor']);
         }
 
         if (isset($item['description'])) {
@@ -178,16 +180,16 @@ class FieldNameConverter
      *
      * Mappings:
      * - quantity → packageQuantity
-     * - value → packageValue
+     * - valueMinor → packageValue
      *
      * @param  array  $packageInfo  Package info data with clean field names
      * @return array Package info data with J&T API field names
      *
      * @example
      * ```php
-     * $clean = ['quantity' => 1, 'value' => 100.00, 'weight' => 1.5];
+     * $clean = ['quantity' => 1, 'valueMinor' => 10000, 'weight' => 1.5];
      * $api = FieldNameConverter::convertPackageInfo($clean);
-     * // Result: ['packageQuantity' => 1, 'packageValue' => 100.00, 'weight' => 1.5]
+     * // Result: ['packageQuantity' => 1, 'packageValue' => '100.00', 'weight' => 1.5]
      * ```
      */
     /**
@@ -203,9 +205,9 @@ class FieldNameConverter
             unset($converted['quantity']);
         }
 
-        if (isset($packageInfo['value'])) {
-            $converted['packageValue'] = $packageInfo['value'];
-            unset($converted['value']);
+        if (isset($packageInfo['valueMinor'])) {
+            $converted['packageValue'] = self::forMoney($packageInfo['valueMinor']);
+            unset($converted['valueMinor']);
         }
 
         return $converted;
@@ -227,7 +229,7 @@ class FieldNameConverter
      * //     'order' => ['orderId' => 'txlogisticId', 'trackingNumber' => 'billCode'],
      * //     'address' => ['state' => 'prov'],
      * //     'item' => ['name' => 'itemName', 'quantity' => 'number', ...],
-     * //     'package' => ['quantity' => 'packageQuantity', 'value' => 'packageValue'],
+     * //     'package' => ['quantity' => 'packageQuantity', 'valueMinor' => 'packageValue'],
      * // ]
      * ```
      */
@@ -244,13 +246,22 @@ class FieldNameConverter
             'item' => [
                 'name' => 'itemName',
                 'quantity' => 'number',
-                'price' => 'itemValue',
+                'priceMinor' => 'itemValue',
                 'description' => 'itemDesc',
             ],
             'package' => [
                 'quantity' => 'packageQuantity',
-                'value' => 'packageValue',
+                'valueMinor' => 'packageValue',
             ],
         ];
+    }
+
+    private static function forMoney(mixed $minor): string
+    {
+        if (! is_int($minor)) {
+            throw new InvalidArgumentException('Money values must be integer minor units.');
+        }
+
+        return TypeTransformer::forMoney($minor);
     }
 }

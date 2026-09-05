@@ -8,11 +8,11 @@ use AIArmada\CommerceSupport\Concerns\HasCommerceAudit;
 use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Carbon;
 use InvalidArgumentException;
 use OwenIt\Auditing\Contracts\Auditable;
 
@@ -24,13 +24,13 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property string|null $description
  * @property int $quantity
  * @property int $weight_grams
- * @property string $unit_price
+ * @property int $unit_price_minor
  * @property string $currency
  * @property array<string, mixed>|null $metadata
  * @property string|null $owner_type
  * @property string|null $owner_id
- * @property Carbon|null $created_at
- * @property Carbon|null $updated_at
+ * @property CarbonImmutable|null $created_at
+ * @property CarbonImmutable|null $updated_at
  * @property-read JntOrder $order
  *
  * @method static Builder<static> forOwner(?Model $owner, bool $includeGlobal = true)
@@ -84,7 +84,7 @@ final class JntOrderItem extends Model implements Auditable
         'description',
         'quantity',
         'weight_grams',
-        'unit_price',
+        'unit_price_minor',
         'currency',
         'metadata',
         'owner_type',
@@ -120,9 +120,9 @@ final class JntOrderItem extends Model implements Auditable
     /**
      * Get the total price for this item.
      */
-    public function getTotalPrice(): float
+    public function getTotalPriceMinor(): int
     {
-        return (float) $this->unit_price * $this->quantity;
+        return $this->unit_price_minor * $this->quantity;
     }
 
     /**
@@ -133,6 +133,7 @@ final class JntOrderItem extends Model implements Auditable
         return [
             'quantity' => 'integer',
             'weight_grams' => 'integer',
+            'unit_price_minor' => 'integer',
             'metadata' => 'array',
         ];
     }

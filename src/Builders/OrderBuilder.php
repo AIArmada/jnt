@@ -18,6 +18,7 @@ use AIArmada\Jnt\Rules\MonetaryValue;
 use AIArmada\Jnt\Rules\PhoneNumber;
 use AIArmada\Jnt\Rules\WeightInGrams;
 use AIArmada\Jnt\Rules\WeightInKilograms;
+use AIArmada\Jnt\Support\TypeTransformer;
 use Illuminate\Support\Facades\Validator;
 
 class OrderBuilder
@@ -45,9 +46,9 @@ class OrderBuilder
 
     protected ?string $pickupEndTime = null;
 
-    protected ?string $insuranceValue = null;
+    protected ?int $insuranceValueMinor = null;
 
-    protected ?string $cashOnDeliveryAmount = null;
+    protected ?int $cashOnDeliveryAmountMinor = null;
 
     protected ?string $remark = null;
 
@@ -146,16 +147,16 @@ class OrderBuilder
         return $this;
     }
 
-    public function insurance(float | string $insuranceValue): self
+    public function insurance(int $insuranceValueMinor): self
     {
-        $this->insuranceValue = (string) $insuranceValue;
+        $this->insuranceValueMinor = $insuranceValueMinor;
 
         return $this;
     }
 
-    public function cashOnDelivery(float | string $cashOnDeliveryAmount): self
+    public function cashOnDelivery(int $cashOnDeliveryAmountMinor): self
     {
-        $this->cashOnDeliveryAmount = (string) $cashOnDeliveryAmount;
+        $this->cashOnDeliveryAmountMinor = $cashOnDeliveryAmountMinor;
 
         return $this;
     }
@@ -232,12 +233,12 @@ class OrderBuilder
             $payload['sendEndTime'] = $this->pickupEndTime;
         }
 
-        if ($this->insuranceValue !== null) {
-            $payload['offerFeeInfo'] = ['offerValue' => $this->insuranceValue];
+        if ($this->insuranceValueMinor !== null) {
+            $payload['offerFeeInfo'] = ['offerValue' => TypeTransformer::forMoney($this->insuranceValueMinor)];
         }
 
-        if ($this->cashOnDeliveryAmount !== null) {
-            $payload['codInfo'] = ['codValue' => $this->cashOnDeliveryAmount];
+        if ($this->cashOnDeliveryAmountMinor !== null) {
+            $payload['codInfo'] = ['codValue' => TypeTransformer::forMoney($this->cashOnDeliveryAmountMinor)];
         }
 
         if ($this->remark !== null) {
@@ -292,17 +293,17 @@ class OrderBuilder
             'receiver_post_code' => 'Receiver postCode',
             'package_weight' => 'Package weight',
             'package_quantity' => 'Package quantity',
-            'package_value' => 'Package value',
+            'package_value_minor' => 'Package value',
             'package_length' => 'Package length',
             'package_width' => 'Package width',
             'package_height' => 'Package height',
             'remark' => 'Remark',
-            'insurance_value' => 'Insurance value',
-            'cod_amount' => 'Cash on delivery amount',
+            'insurance_value_minor' => 'Insurance value',
+            'cod_amount_minor' => 'Cash on delivery amount',
             'items.*.name' => 'Item #:position name',
             'items.*.quantity' => 'Item #:position quantity',
             'items.*.weight' => 'Item #:position weight',
-            'items.*.price' => 'Item #:position price',
+            'items.*.price_minor' => 'Item #:position price',
             'items.*.description' => 'Item #:position description',
         ]);
 
@@ -382,7 +383,7 @@ class OrderBuilder
         if ($this->packageInfo instanceof PackageInfoData) {
             $data['package_weight'] = $this->packageInfo->weight;
             $data['package_quantity'] = $this->packageInfo->quantity;
-            $data['package_value'] = $this->packageInfo->value;
+            $data['package_value_minor'] = $this->packageInfo->valueMinor;
 
             if ($this->packageInfo->length !== null) {
                 $data['package_length'] = $this->packageInfo->length;
@@ -403,7 +404,7 @@ class OrderBuilder
                 'name' => $item->name,
                 'quantity' => $item->quantity,
                 'weight' => $item->weight,
-                'price' => $item->price,
+                'price_minor' => $item->priceMinor,
             ];
 
             if ($item->description !== null) {
@@ -418,12 +419,12 @@ class OrderBuilder
             $data['remark'] = $this->remark;
         }
 
-        if ($this->insuranceValue !== null) {
-            $data['insurance_value'] = $this->insuranceValue;
+        if ($this->insuranceValueMinor !== null) {
+            $data['insurance_value_minor'] = $this->insuranceValueMinor;
         }
 
-        if ($this->cashOnDeliveryAmount !== null) {
-            $data['cod_amount'] = $this->cashOnDeliveryAmount;
+        if ($this->cashOnDeliveryAmountMinor !== null) {
+            $data['cod_amount_minor'] = $this->cashOnDeliveryAmountMinor;
         }
 
         return $data;
@@ -465,7 +466,7 @@ class OrderBuilder
         if ($this->packageInfo instanceof PackageInfoData) {
             $rules['package_weight'] = ['required', 'numeric', new WeightInKilograms];
             $rules['package_quantity'] = ['required', 'integer', 'min:1', 'max:999'];
-            $rules['package_value'] = ['required', 'numeric', new MonetaryValue];
+            $rules['package_value_minor'] = ['required', 'numeric', new MonetaryValue];
             $rules['package_length'] = ['nullable', 'numeric', new DimensionInCentimeters];
             $rules['package_width'] = ['nullable', 'numeric', new DimensionInCentimeters];
             $rules['package_height'] = ['nullable', 'numeric', new DimensionInCentimeters];
@@ -484,7 +485,7 @@ class OrderBuilder
             $rules['items.*.name'] = ['required', 'string', 'max:200'];
             $rules['items.*.quantity'] = ['required', 'integer', 'min:1', 'max:999'];
             $rules['items.*.weight'] = ['required', 'numeric', new WeightInGrams];
-            $rules['items.*.price'] = ['required', 'numeric', new MonetaryValue];
+            $rules['items.*.price_minor'] = ['required', 'numeric', new MonetaryValue(999_999_999)];
             $rules['items.*.description'] = ['nullable', 'string', 'max:500'];
         }
 
@@ -493,12 +494,12 @@ class OrderBuilder
             $rules['remark'] = ['string', 'max:300']; // API limit: max 300 chars
         }
 
-        if ($this->insuranceValue !== null) {
-            $rules['insurance_value'] = ['numeric', new MonetaryValue];
+        if ($this->insuranceValueMinor !== null) {
+            $rules['insurance_value_minor'] = ['numeric', new MonetaryValue];
         }
 
-        if ($this->cashOnDeliveryAmount !== null) {
-            $rules['cod_amount'] = ['numeric', new MonetaryValue];
+        if ($this->cashOnDeliveryAmountMinor !== null) {
+            $rules['cod_amount_minor'] = ['numeric', new MonetaryValue];
         }
 
         return $rules;

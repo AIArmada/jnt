@@ -15,7 +15,7 @@ return new class extends Migration
         $prefix = config('jnt.database.table_prefix', 'jnt_');
         $orderParcelsTable = $tables['order_parcels'] ?? $prefix . 'order_parcels';
 
-        Schema::create($orderParcelsTable, function (Blueprint $table): void {
+        commerce_schema_create_if_missing($orderParcelsTable, function (Blueprint $table): void {
             $jsonType = (string) commerce_json_column_type('jnt', 'jsonb');
             $table->uuid('id')->primary();
             $table->foreignUuid('order_id')->index();
@@ -36,7 +36,7 @@ return new class extends Migration
         // GIN indexes only work with jsonb in PostgreSQL
         if (commerce_json_column_type('jnt', 'jsonb') === 'jsonb' && DB::connection()->getDriverName() === 'pgsql') {
             Schema::table($orderParcelsTable, function (Blueprint $table) use ($orderParcelsTable): void {
-                DB::statement('CREATE INDEX jnt_order_parcels_metadata_gin_index ON ' . $orderParcelsTable . ' USING GIN (metadata)');
+                DB::statement('CREATE INDEX IF NOT EXISTS jnt_order_parcels_metadata_gin_index ON ' . $orderParcelsTable . ' USING GIN (metadata)');
             });
         }
     }

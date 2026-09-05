@@ -11,7 +11,6 @@ use AIArmada\Jnt\Enums\TrackingStatus;
 use AIArmada\Jnt\Events\JntOrderStatusChanged;
 use AIArmada\Jnt\Models\JntOrder;
 use AIArmada\Jnt\Models\JntTrackingEvent;
-use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
@@ -60,7 +59,7 @@ class JntTrackingService
     /**
      * Track a parcel and return normalized status information
      *
-     * @return array{tracking_number: string, order_id: string|null, current_status: TrackingStatus, events: array<array{status: TrackingStatus, description: string, location: string|null, occurred_at: Carbon, raw: TrackingDetailData}>}
+     * @return array{tracking_number: string, order_id: string|null, current_status: TrackingStatus, events: array<array{status: TrackingStatus, description: string, location: string|null, occurred_at: CarbonImmutable, raw: TrackingDetailData}>}
      */
     public function track(?string $orderId = null, ?string $trackingNumber = null): array
     {
@@ -72,7 +71,7 @@ class JntTrackingService
     /**
      * Parse tracking data into normalized format
      *
-     * @return array{tracking_number: string, order_id: string|null, current_status: TrackingStatus, events: array<array{status: TrackingStatus, description: string, location: string|null, occurred_at: Carbon, raw: TrackingDetailData}>}
+     * @return array{tracking_number: string, order_id: string|null, current_status: TrackingStatus, events: array<array{status: TrackingStatus, description: string, location: string|null, occurred_at: CarbonImmutable, raw: TrackingDetailData}>}
      */
     public function parseTrackingData(TrackingData $trackingData): array
     {
@@ -83,7 +82,7 @@ class JntTrackingService
                 'status' => $this->getNormalizedStatus($detail),
                 'description' => $detail->description,
                 'location' => $this->formatLocation($detail),
-                'occurred_at' => Carbon::parse($detail->scanTime),
+                'occurred_at' => CarbonImmutable::parse($detail->scanTime),
                 'raw' => $detail,
             ];
         }
@@ -114,7 +113,7 @@ class JntTrackingService
 
             // Store new events
             foreach ($trackingData->details->toCollection() as $detail) {
-                $scanTime = Carbon::parse($detail->scanTime);
+                $scanTime = CarbonImmutable::parse($detail->scanTime);
 
                 $ownerType = $order->owner_type;
                 $ownerId = $order->owner_id;
@@ -206,7 +205,7 @@ class JntTrackingService
 
                 // Mark as delivered if appropriate
                 if ($currentStatus === TrackingStatus::Delivered && $order->delivered_at === null) {
-                    $order->delivered_at = Carbon::parse($latestDetail->scanTime);
+                    $order->delivered_at = CarbonImmutable::parse($latestDetail->scanTime);
                 }
             }
 

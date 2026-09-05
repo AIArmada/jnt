@@ -23,8 +23,8 @@ $order = JntExpress::createOrderBuilder()
     ->receiver($receiverAddress)
     ->addItem($item)
     ->packageInfo($packageInfo)
-    ->insurance(500.00)           // Optional
-    ->cashOnDelivery(100.00)      // Optional
+    ->insurance(50000)            // Optional: MYR minor units
+    ->cashOnDelivery(10000)       // Optional: MYR minor units
     ->remark('Handle with care')  // Optional
     ->build();
 
@@ -157,10 +157,10 @@ $address = new AddressData(
 use AIArmada\Jnt\Data\ItemData;
 
 $item = new ItemData(
-    itemName: 'Product Name',
+    name: 'Product Name',
     quantity: 2,
     weight: 500,          // In grams
-    unitPrice: 99.90,
+    priceMinor: 9990,     // MYR minor units (sen)
     description: 'Desc',  // Optional
     currency: 'MYR',      // Optional
 );
@@ -175,7 +175,7 @@ use AIArmada\Jnt\Enums\GoodsType;
 $package = new PackageInfoData(
     quantity: 1,
     weight: 1.5,           // In kilograms
-    declaredValue: 199.90,
+    valueMinor: 19990,     // MYR minor units (sen)
     goodsType: GoodsType::PACKAGE,
     length: 30,            // Optional, in cm
     width: 20,             // Optional
@@ -314,8 +314,8 @@ public function handle(TrackingUpdated $event): void
 | `trackingNumber` | `billCode` | J&T tracking number |
 | `state` | `prov` | State/province |
 | `quantity` | `number` | Item quantity |
-| `unitPrice` | `itemValue` | Price per item |
-| `declaredValue` | `packageValue` | Declared value |
+| `priceMinor` | `itemValue` | Price per item in MYR minor units, emitted as a J&T decimal string |
+| `valueMinor` | `packageValue` | Declared value in MYR minor units, emitted as a J&T decimal string |
 | `chargeableWeight` | `packageChargeWeight` | Billable weight |
 
 The package handles translation automatically.

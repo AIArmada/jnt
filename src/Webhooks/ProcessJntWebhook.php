@@ -17,7 +17,6 @@ use AIArmada\Jnt\Models\JntOrder;
 use AIArmada\Jnt\Models\JntTrackingEvent;
 use AIArmada\Jnt\Models\JntWebhookLog;
 use AIArmada\Jnt\Services\JntStatusMapper;
-use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Log;
@@ -490,13 +489,13 @@ class ProcessJntWebhook extends CommerceWebhookProcessor
         return is_array($latest) ? $latest : null;
     }
 
-    private function parseScanTime(mixed $value): ?Carbon
+    private function parseScanTime(mixed $value): ?CarbonImmutable
     {
         if (! is_string($value) || $value === '') {
             return null;
         }
 
-        return Carbon::parse($value);
+        return CarbonImmutable::parse($value);
     }
 
     private function nullableString(mixed $value): ?string

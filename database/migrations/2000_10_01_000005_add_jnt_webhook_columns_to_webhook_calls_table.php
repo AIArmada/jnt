@@ -21,7 +21,11 @@ return new class extends Migration
             return;
         }
 
-        Schema::table('webhook_calls', function (Blueprint $table): void {
+        $hasOwnerType = Schema::hasColumn('webhook_calls', 'owner_type');
+        $hasOwnerId = Schema::hasColumn('webhook_calls', 'owner_id');
+        $hasOwnerIndex = Schema::hasIndex('webhook_calls', 'webhook_calls_owner_type_owner_id_index');
+
+        Schema::table('webhook_calls', function (Blueprint $table) use ($hasOwnerType, $hasOwnerId, $hasOwnerIndex): void {
             if (! Schema::hasColumn('webhook_calls', 'order_id')) {
                 $table->foreignUuid('order_id')->nullable()->index();
             }
@@ -46,8 +50,20 @@ return new class extends Migration
                 $table->text('processing_error')->nullable();
             }
 
-            if (! Schema::hasColumn('webhook_calls', 'owner_type') && ! Schema::hasColumn('webhook_calls', 'owner_id')) {
+            if (! $hasOwnerType && ! $hasOwnerId) {
                 $table->nullableMorphs('owner');
+            } else {
+                if (! $hasOwnerType) {
+                    $table->string('owner_type')->nullable();
+                }
+
+                if (! $hasOwnerId) {
+                    $table->uuid('owner_id')->nullable();
+                }
+
+                if (! $hasOwnerIndex) {
+                    $table->index(['owner_type', 'owner_id'], 'webhook_calls_owner_type_owner_id_index');
+                }
             }
 
             $this->addIndexIfMissing($table, ['processing_status', 'created_at'], 'jnt_webhook_calls_pending_idx');

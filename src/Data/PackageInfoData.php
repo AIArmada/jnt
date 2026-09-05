@@ -23,7 +23,7 @@ class PackageInfoData extends Data
     /**
      * @param  int|string  $quantity  Number of packages (1-999, required, integer)
      * @param  float|int|string  $weight  Total weight in KILOGRAMS (0.01-999.99, required, 2 decimals)
-     * @param  float|int|string  $value  Declared value in MYR (0.01-999999.99, required, 2 decimals)
+     * @param  int  $valueMinor  Declared value in MYR minor units (1-99999999, required)
      * @param  GoodsType|string  $goodsType  Type of goods (ITN2=Document, ITN8=Package, required)
      * @param  float|int|string|null  $length  Length in CENTIMETERS (0.01-999.99, optional, 2 decimals)
      * @param  float|int|string|null  $width  Width in CENTIMETERS (0.01-999.99, optional, 2 decimals)
@@ -32,7 +32,7 @@ class PackageInfoData extends Data
     public function __construct(
         public readonly int | string $quantity,
         public readonly float | int | string $weight,
-        public readonly float | int | string $value,
+        public readonly int $valueMinor,
         public readonly GoodsType | string $goodsType,
         public readonly float | int | string | null $length = null,
         public readonly float | int | string | null $width = null,
@@ -53,7 +53,7 @@ class PackageInfoData extends Data
         return new self(
             quantity: (int) $data['packageQuantity'],
             weight: (float) $data['weight'],
-            value: (float) $data['packageValue'],
+            valueMinor: TypeTransformer::moneyToMinor($data['packageValue']),
             goodsType: $goodsType,
             length: isset($data['length']) ? (float) $data['length'] : null,
             width: isset($data['width']) ? (float) $data['width'] : null,
@@ -67,7 +67,7 @@ class PackageInfoData extends Data
      * Uses context-aware transformers to ensure correct formatting:
      * - quantity: Integer string (1-999)
      * - weight: Decimal string in KILOGRAMS with 2 decimals (0.01-999.99)
-     * - value: Decimal string in MYR with 2 decimals (0.01-999999.99)
+     * - valueMinor: Integer minor units converted to a decimal MYR string
      * - dimensions: Decimal strings in CENTIMETERS with 2 decimals (0.01-999.99)
      *
      * @return array<string, string>
@@ -81,7 +81,7 @@ class PackageInfoData extends Data
         return array_filter([
             'packageQuantity' => TypeTransformer::toIntegerString($this->quantity),
             'weight' => TypeTransformer::forPackageWeight($this->weight),
-            'packageValue' => TypeTransformer::forMoney($this->value),
+            'packageValue' => TypeTransformer::forMoney($this->valueMinor),
             'goodsType' => $goodsTypeValue,
             'length' => $this->length !== null ? TypeTransformer::forDimension($this->length) : null,
             'width' => $this->width !== null ? TypeTransformer::forDimension($this->width) : null,

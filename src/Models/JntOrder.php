@@ -6,7 +6,6 @@ namespace AIArmada\Jnt\Models;
 
 use AIArmada\CommerceSupport\Concerns\HasCommerceAudit;
 use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
-use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use Carbon\CarbonInterface;
@@ -35,11 +34,11 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property string|null $package_length
  * @property string|null $package_width
  * @property string|null $package_height
- * @property string|null $package_value
+ * @property int|null $package_value_minor
  * @property string|null $goods_type
- * @property string|null $offer_value
- * @property string|null $cod_value
- * @property string|null $insurance_value
+ * @property int|null $offer_value_minor
+ * @property int|null $cod_value_minor
+ * @property int|null $insurance_value_minor
  * @property CarbonInterface|null $pickup_start_at
  * @property CarbonInterface|null $pickup_end_at
  * @property CarbonInterface|null $ordered_at
@@ -104,11 +103,11 @@ final class JntOrder extends Model implements Auditable
         'package_length',
         'package_width',
         'package_height',
-        'package_value',
+        'package_value_minor',
         'goods_type',
-        'offer_value',
-        'cod_value',
-        'insurance_value',
+        'offer_value_minor',
+        'cod_value_minor',
+        'insurance_value_minor',
         'pickup_start_at',
         'pickup_end_at',
         'ordered_at',
@@ -223,32 +222,6 @@ final class JntOrder extends Model implements Auditable
      */
     protected static function booted(): void
     {
-        self::creating(function (JntOrder $order): void {
-            if (! config('jnt.owner.enabled', false)) {
-                return;
-            }
-
-            if (! config('jnt.owner.auto_assign_on_create', true)) {
-                return;
-            }
-
-            $attributes = $order->getAttributes();
-
-            if (array_key_exists('owner_type', $attributes) || array_key_exists('owner_id', $attributes)) {
-                return;
-            }
-
-            if ($order->owner_type !== null || $order->owner_id !== null) {
-                return;
-            }
-
-            $owner = $order->resolveOwner();
-
-            if ($owner !== null) {
-                $order->assignOwner($owner);
-            }
-        });
-
         self::deleting(function (JntOrder $order): void {
             // Application-level cascade delete
             $order->items()->delete();
@@ -258,11 +231,6 @@ final class JntOrder extends Model implements Auditable
         });
     }
 
-    protected function resolveOwner(): ?Model
-    {
-        return OwnerContext::resolve();
-    }
-
     /**
      * @return array<string, string>
      */
@@ -270,17 +238,21 @@ final class JntOrder extends Model implements Auditable
     {
         return [
             'package_quantity' => 'integer',
-            'pickup_start_at' => 'datetime',
-            'pickup_end_at' => 'datetime',
-            'ordered_at' => 'datetime',
-            'last_synced_at' => 'datetime',
-            'last_tracked_at' => 'datetime',
-            'delivered_at' => 'datetime',
-            'problem_at' => 'datetime',
-            'exception_at' => 'datetime',
-            'returned_at' => 'datetime',
-            'resolved_at' => 'datetime',
-            'cancelled_at' => 'datetime',
+            'package_value_minor' => 'integer',
+            'offer_value_minor' => 'integer',
+            'cod_value_minor' => 'integer',
+            'insurance_value_minor' => 'integer',
+            'pickup_start_at' => 'immutable_datetime',
+            'pickup_end_at' => 'immutable_datetime',
+            'ordered_at' => 'immutable_datetime',
+            'last_synced_at' => 'immutable_datetime',
+            'last_tracked_at' => 'immutable_datetime',
+            'delivered_at' => 'immutable_datetime',
+            'problem_at' => 'immutable_datetime',
+            'exception_at' => 'immutable_datetime',
+            'returned_at' => 'immutable_datetime',
+            'resolved_at' => 'immutable_datetime',
+            'cancelled_at' => 'immutable_datetime',
             'sender' => 'array',
             'receiver' => 'array',
             'return_info' => 'array',

@@ -67,7 +67,7 @@ $item = new ItemData(
     name: 'Wireless Mouse',
     quantity: 2,
     weight: 200,       // Weight in grams
-    price: 49.90,      // Unit price in MYR
+    priceMinor: 4990,  // Unit price in MYR minor units (sen)
     description: 'Bluetooth wireless mouse',
 );
 
@@ -75,7 +75,7 @@ $item = new ItemData(
 $packageInfo = new PackageInfoData(
     quantity: 1,
     weight: 0.5,       // Total weight in kilograms
-    value: 99.80,      // Declared value in MYR
+    valueMinor: 9980,  // Declared value in MYR minor units (sen)
     goodsType: GoodsType::PACKAGE,
     length: 15,        // Dimensions in cm (optional)
     width: 10,
@@ -181,14 +181,14 @@ $item = new ItemData(
     name: 'Product Name',        // Required: Item name (max 200 chars)
     quantity: 2,                 // Required: Quantity (1-9999999)
     weight: 500,                 // Required: Weight per unit in GRAMS
-    price: 49.90,                // Required: Unit price in MYR
+    priceMinor: 4990,            // Required: Unit price in MYR minor units
     englishName: 'Product',      // Optional: English name for customs
     description: 'Description',  // Optional: Item description (max 500 chars)
     currency: 'MYR',             // Optional: Currency code (default: MYR)
 );
 
 // Helper methods
-$item->getTotalValue();  // Returns 99.80 (price × quantity)
+$item->getTotalValueMinor(); // Returns 9980 (minor-unit price × quantity)
 $item->getTotalWeight(); // Returns 1000 (weight × quantity)
 ```
 
@@ -203,7 +203,7 @@ use AIArmada\Jnt\Enums\GoodsType;
 $package = new PackageInfoData(
     quantity: 1,                    // Required: Number of packages
     weight: 1.5,                    // Required: Total weight in KILOGRAMS
-    value: 199.90,                  // Required: Declared value in MYR
+    valueMinor: 19990,              // Required: Declared value in MYR minor units
     goodsType: GoodsType::PACKAGE,  // Required: DOCUMENT or PACKAGE
     length: 30,                     // Optional: Length in cm
     width: 20,                      // Optional: Width in cm
@@ -229,7 +229,7 @@ $order = JntExpress::createOrderBuilder()
     ->addItem($item)
     ->packageInfo($packageInfo)
     ->paymentType(PaymentType::COLLECT_CASH)
-    ->cashOnDelivery(199.90)  // COD amount in MYR
+    ->cashOnDelivery(19990)   // COD amount in MYR minor units
     ->build();
 ```
 
@@ -244,7 +244,7 @@ $order = JntExpress::createOrderBuilder()
     ->receiver($receiver)
     ->addItem($item)
     ->packageInfo($packageInfo)
-    ->insurance(500.00)  // Insurance value in MYR
+    ->insurance(50000)    // Insurance value in MYR minor units
     ->build();
 ```
 
@@ -374,7 +374,7 @@ $validated = $request->validate([
     'weight_kg' => ['required', new WeightInKilograms],
     'weight_g' => ['required', new WeightInGrams],
     'length' => ['required', new DimensionInCentimeters],
-    'price' => ['required', new MonetaryValue],
+    'price_minor' => ['required', new MonetaryValue],
 ]);
 ```
 

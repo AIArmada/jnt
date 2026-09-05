@@ -75,16 +75,16 @@ $receiver = new AddressData(
 );
 
 $item = new ItemData(
-    itemName: 'Basketball',
+    name: 'Basketball',
     quantity: 2,
     weight: 10,
-    unitPrice: 50.00,
+    priceMinor: 5000,
 );
 
 $packageInfo = new PackageInfoData(
     quantity: 1,
     weight: 10,
-    declaredValue: 50,
+    valueMinor: 5000,
     goodsType: GoodsType::PACKAGE,
 );
 
@@ -253,7 +253,10 @@ The package translates clean names to J&T's API format automatically:
 | `orderId` | `txlogisticId` | Your order reference |
 | `trackingNumber` | `billCode` | J&T tracking number |
 | `state` | `prov` | State/province |
+| `name` | `itemName` | Item name |
 | `quantity` | `number` | Item quantity |
+| `priceMinor` | `itemValue` | Item price in MYR minor units, formatted as a J&T decimal string |
+| `valueMinor` | `packageValue` | Package value in MYR minor units, formatted as a J&T decimal string |
 | `chargeableWeight` | `packageChargeWeight` | Billable weight |
 
 ---

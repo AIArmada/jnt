@@ -23,7 +23,7 @@ class ItemData extends Data
      * @param  string  $name  Item name (max 200 chars, required)
      * @param  int|string  $quantity  Number of units (1-9999999, required, integer)
      * @param  float|int|string  $weight  Weight per unit in GRAMS (1-999999, required, integer)
-     * @param  float|int|string  $price  Unit price in MYR (0.01-9999999.99, required, 2 decimals)
+     * @param  int  $priceMinor  Unit price in MYR minor units (1-999999999, required)
      * @param  string|null  $englishName  English name (max 200 chars, optional)
      * @param  string|null  $description  Item description (max 500 chars, optional)
      * @param  string  $currency  Currency code (default: MYR)
@@ -32,7 +32,7 @@ class ItemData extends Data
         public readonly string $name,
         public readonly int | string $quantity,
         public readonly float | int | string $weight,
-        public readonly float | int | string $price,
+        public readonly int $priceMinor,
         public readonly ?string $englishName = null,
         public readonly ?string $description = null,
         public readonly string $currency = 'MYR',
@@ -49,7 +49,7 @@ class ItemData extends Data
             name: $data['itemName'],
             quantity: (int) $data['number'],
             weight: (float) $data['weight'],
-            price: (float) $data['itemValue'],
+            priceMinor: TypeTransformer::moneyToMinor($data['itemValue']),
             englishName: $data['englishName'] ?? null,
             description: $data['itemDesc'] ?? null,
             currency: $data['itemCurrency'] ?? 'MYR',
@@ -62,7 +62,7 @@ class ItemData extends Data
      * Uses context-aware transformers to ensure correct formatting:
      * - quantity: Integer string (1-9999999)
      * - weight: Integer string in GRAMS (1-999999)
-     * - price: Decimal string in MYR with 2 decimals (0.01-9999999.99)
+     * - priceMinor: Integer minor units converted to a decimal MYR string
      *
      * @return array<string, string>
      */
@@ -73,15 +73,15 @@ class ItemData extends Data
             'englishName' => $this->englishName,
             'number' => TypeTransformer::toIntegerString($this->quantity),
             'weight' => TypeTransformer::forItemWeight($this->weight),
-            'itemValue' => TypeTransformer::forMoney($this->price),
+            'itemValue' => TypeTransformer::forMoney($this->priceMinor),
             'itemCurrency' => $this->currency,
             'itemDesc' => $this->description,
         ], fn (?string $value): bool => $value !== null);
     }
 
-    public function getTotalValue(): float
+    public function getTotalValueMinor(): int
     {
-        return (float) $this->price * (int) $this->quantity;
+        return $this->priceMinor * (int) $this->quantity;
     }
 
     public function getTotalWeight(): float

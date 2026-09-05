@@ -10,11 +10,11 @@ use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use AIArmada\Jnt\Enums\ScanTypeCode;
 use AIArmada\Jnt\Enums\TrackingStatus;
 use AIArmada\Jnt\Services\JntStatusMapper;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Carbon;
 use InvalidArgumentException;
 
 /**
@@ -26,7 +26,7 @@ use InvalidArgumentException;
  * @property string|null $scan_type_code
  * @property string|null $scan_type_name
  * @property string|null $scan_type
- * @property Carbon|null $scan_time
+ * @property CarbonImmutable|null $scan_time
  * @property string|null $description
  * @property string|null $scan_network_type_name
  * @property string|null $scan_network_name
@@ -60,8 +60,8 @@ use InvalidArgumentException;
  * @property array<string, mixed>|null $payload
  * @property string|null $owner_type
  * @property string|null $owner_id
- * @property Carbon|null $created_at
- * @property Carbon|null $updated_at
+ * @property CarbonImmutable|null $created_at
+ * @property CarbonImmutable|null $updated_at
  * @property-read JntOrder|null $order
  *
  * @method static Builder<static> forOwner(?Model $owner, bool $includeGlobal = true)
@@ -234,7 +234,7 @@ final class JntTrackingEvent extends Model
     protected function casts(): array
     {
         return [
-            'scan_time' => 'datetime',
+            'scan_time' => 'immutable_datetime',
             'scan_network_id' => 'integer',
             'payload' => 'array',
         ];

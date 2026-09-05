@@ -60,14 +60,14 @@ class OrderCreateCommand extends JntCommand
                     name: $itemName,
                     quantity: $itemQty,
                     weight: 100,
-                    price: 0,
+                    priceMinor: 0,
                 ),
             ];
 
             $packageInfo = new PackageInfoData(
                 quantity: 1,
                 weight: $weight,
-                value: 0,
+                valueMinor: 0,
                 goodsType: GoodsType::PACKAGE,
             );
 

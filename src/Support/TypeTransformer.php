@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace AIArmada\Jnt\Support;
 
+use InvalidArgumentException;
+
 /**
  * Handles type transformations between developer-friendly types and J&T API requirements
  *
@@ -110,23 +112,50 @@ class TypeTransformer
     }
 
     /**
-     * Transform money (MALAYSIAN RINGGIT → 2 decimal string)
+     * Convert a major-unit API value to integer minor units.
      *
-     * Money is in MALAYSIAN RINGGIT (MYR) and sent with 2 DECIMALS to the API.
-     * The API expects String(0.01-999999.99) format for monetary values.
-     *
-     * @param  float|int|string  $myr  Amount in MYR (0.01-999999.99)
-     * @return string Money as 2-decimal string
-     *
-     * @example
-     * TypeTransformer::forMoney(19.9) → "19.90"
-     * TypeTransformer::forMoney(150) → "150.00"
-     * TypeTransformer::forMoney(150.5) → "150.50"
-     * TypeTransformer::forMoney("150") → "150.00"
+     * The J&T API represents money as a decimal string in MYR. Domain data
+     * represents money as integer sen, so conversion happens only at this
+     * integration boundary.
      */
-    public static function forMoney(float | int | string $myr): string
+    public static function moneyToMinor(int | float | string $major): int
     {
-        return self::toDecimalString($myr, 2);
+        if (is_int($major)) {
+            return $major * 100;
+        }
+
+        if (is_float($major)) {
+            if (! is_finite($major)) {
+                throw new InvalidArgumentException('Money must be a finite number.');
+            }
+
+            return (int) round($major * 100);
+        }
+
+        $normalized = str_replace([',', ' '], '', mb_trim($major));
+
+        if (! preg_match('/^-?\d+(?:\.\d{1,2})?$/', $normalized)) {
+            throw new InvalidArgumentException("Invalid money value: {$major}");
+        }
+
+        $negative = str_starts_with($normalized, '-');
+        $unsigned = mb_ltrim($normalized, '+-');
+        [$whole, $fraction] = array_pad(explode('.', $unsigned, 2), 2, '');
+        $minor = ((int) $whole * 100) + (int) mb_str_pad($fraction, 2, '0');
+
+        return $negative ? -$minor : $minor;
+    }
+
+    /**
+     * Transform integer minor units to the J&T major-unit money string.
+     */
+    public static function forMoney(int $minor): string
+    {
+        $negative = $minor < 0;
+        $absolute = abs($minor);
+        $value = intdiv($absolute, 100) . '.' . mb_str_pad((string) ($absolute % 100), 2, '0', STR_PAD_LEFT);
+
+        return $negative ? '-' . $value : $value;
     }
 
     /**
