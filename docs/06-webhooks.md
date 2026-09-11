@@ -4,341 +4,91 @@ title: Webhooks
 
 # Webhooks
 
-Receive real-time tracking status updates from J&T Express.
+J&T status webhooks are signature-verified at the HTTP boundary, stored in the shared `webhook_calls` table, and processed by the queued `ProcessJntWebhook` job.
 
-## Quick Setup
-
-### 1. Configure Environment
+## Configuration
 
 ```env
 JNT_PRIVATE_KEY=your_private_key
 JNT_WEBHOOKS_ENABLED=true
-JNT_WEBHOOK_LOG_PAYLOADS=false  # Enable for debugging only
+JNT_WEBHOOKS_VERIFY_SIGNATURE=true
+JNT_WEBHOOK_LOG_PAYLOADS=false
+JNT_WEBHOOK_RETRY_TIMES=3
+JNT_WEBHOOK_RETRY_BACKOFF_SECONDS=60
 ```
 
-### 2. Create Event Listener
+The endpoint is `POST /webhooks/jnt/status` by default. Configure the route with `JNT_WEBHOOK_ROUTE` when the application needs a different path.
+
+## Tracking event
+
+After the webhook is accepted, the queued processor dispatches `TrackingUpdatedEvent` with typed `TrackingData`. The event is dispatched for known and unknown local orders alike.
 
 ```php
-namespace App\Listeners;
+use AIArmada\Jnt\Events\TrackingUpdatedEvent;
 
-use App\Models\Order;
-use AIArmada\Jnt\Events\TrackingUpdated;
-
-class UpdateOrderTracking
+final class UpdateOrderTracking
 {
-    public function handle(TrackingUpdated $event): void
+    public function handle(TrackingUpdatedEvent $event): void
     {
-        $order = Order::where('tracking_number', $event->billcode)->first();
-        
-        if (!$order) {
-            return;
-        }
-
-        $order->update([
-            'tracking_status' => $event->eventType,
-            'tracking_payload' => $event->payload,
+        logger()->info('J&T tracking update', [
+            'tracking_number' => $event->getTrackingNumber(),
+            'order_id' => $event->getOrderId(),
+            'status' => $event->getLatestStatus(),
         ]);
     }
 }
 ```
 
-### 3. Register Listener
+Register the listener in the application event provider:
 
 ```php
-// app/Providers/EventServiceProvider.php
+use AIArmada\Jnt\Events\TrackingUpdatedEvent;
+
 protected $listen = [
-    \AIArmada\Jnt\Events\TrackingUpdated::class => [
+    TrackingUpdatedEvent::class => [
         \App\Listeners\UpdateOrderTracking::class,
     ],
 ];
 ```
 
-### 4. Configure J&T Dashboard
-
-Set your webhook URL:
-
-```
-https://yourdomain.com/webhooks/jnt/status
-```
-
----
-
-## Event Data
-
-The generic `TrackingUpdated` event is always dispatched, even when the shipment is not yet known locally:
-
-```php
-$event->billcode;   // J&T tracking number
-$event->eventType;  // scanType / derived webhook event type
-$event->payload;    // Decoded bizContent payload
-```
-
-When the webhook can be matched to a shipment, the processor also dispatches status-specific events:
-
-- `ParcelPickedUp`
-- `ParcelInTransit`
-- `ParcelOutForDelivery`
-- `ParcelDelivered`
-
-Those status-specific events expose the shipment model directly:
-
-```php
-$event->shipment;           // JntOrder model
-$event->getShipmentId();    // Shipment primary key
-$event->getTrackingNumber();
-```
+`TrackingUpdatedEvent` exposes `getTrackingNumber()`, `getOrderId()`, `getLatestStatus()`, `getLatestDescription()`, `getLatestLocation()`, and typed tracking details through `getDetails()`.
 
 ## Webhook log records
 
-Every delivery is written to `JntWebhookLog`, which uses the shared `webhook_calls` table under the hood. During processing the package updates the log row with:
+`JntWebhookLog` reads only rows named `jnt.webhooks.status` from the shared table. It records the tracking number, order reference, matched order ID, digest, processing status, processing error, and processed timestamp. Its `order_id` write path validates the order against the current owner context.
 
-- `tracking_number`
-- `order_reference`
-- `order_id` when the shipment is known
-- `digest`
-- `processing_status` (`pending`, `processed`, or `failed`)
-- `processing_error`
-- `processed_at`
+Unknown orders remain valid webhook records; they receive the typed tracking event but cannot resolve a cross-owner local order.
 
-Unknown shipments still update the webhook log metadata and dispatch `TrackingUpdated`, which makes webhook logs useful even before a local order record exists.
+## Queue retries
 
----
-
-## Common Patterns
-
-### Customer Notifications
+Network and processing failures are retried by the queue worker. There is no request-thread sleep or retry loop in the J&T HTTP client. Configure the queued retry policy:
 
 ```php
-use AIArmada\Jnt\Events\ParcelDelivered;
-
-class NotifyCustomer
-{
-    public function handle(ParcelDelivered $event): void
-    {
-        $shipment = $event->shipment;
-
-        if (! $shipment->relationLoaded('order')) {
-            $shipment->loadMissing('order');
-        }
-
-        $order = $shipment->order;
-
-        if ($order === null) {
-            return;
-        }
-
-        $order->user?->notify(new OrderDelivered($order));
-    }
-}
+'webhooks' => [
+    'retry_times' => 3,
+    'retry_backoff_seconds' => 60,
+],
 ```
 
-### Queue Processing
-
-```php
-use Illuminate\Contracts\Queue\ShouldQueue;
-
-class ProcessWebhook implements ShouldQueue
-{
-    public string $queue = 'webhooks';
-    
-    public function handle(TrackingUpdated $event): void
-    {
-        // Heavy processing runs in background
-    }
-}
-```
-
-### Log Tracking History
-
-```php
-class LogTrackingHistory
-{
-    public function handle(TrackingUpdated $event): void
-    {
-        foreach (($event->payload['details'] ?? []) as $status) {
-            TrackingEvent::create([
-                'tracking_number' => $event->billcode,
-                'status' => $status['desc'] ?? $status['scanTypeName'] ?? $status['scanType'] ?? 'unknown',
-                'timestamp' => $status['scanTime'],
-                'location' => $status['scanNetworkCity'] ?? null,
-            ]);
-        }
-    }
-}
-```
-
----
-
-## Testing Locally
-
-### Using Tunnels
+Run a worker while testing locally:
 
 ```bash
-# Cloudflare Tunnel
-cloudflared tunnel run your-tunnel
-
-# Or ngrok
-ngrok http 8000
-
-# Or Expose
-expose share http://localhost:8000
+php artisan queue:work
 ```
 
-### Manual Testing
+## Local verification
+
+Generate a signature by hashing the exact JSON `bizContent` followed by the private key with MD5, then base64-encode the binary digest:
 
 ```bash
-# Generate signature
-BIZCONTENT='{"billCode":"TEST123","details":[{"scanTime":"2024-01-15 10:00:00","desc":"Test"}]}'
+BIZCONTENT='{"billCode":"TEST123","details":[]}'
 PRIVATE_KEY="your_private_key"
 SIGNATURE=$(echo -n "${BIZCONTENT}${PRIVATE_KEY}" | openssl dgst -md5 -binary | base64)
 
-# Send request
 curl -X POST https://yourdomain.com/webhooks/jnt/status \
   -H "Content-Type: application/json" \
-  -d "{\"digest\":\"${SIGNATURE}\",\"bizContent\":${BIZCONTENT}}"
+  -H "digest: ${SIGNATURE}" \
+  -d "{\"bizContent\":${BIZCONTENT}}"
 ```
 
----
-
-## Troubleshooting
-
-### Webhooks Not Received
-
-**Check route exists:**
-```bash
-php artisan route:list | grep jnt
-# Expected: POST | webhooks/jnt/status
-```
-
-**Verify config:**
-```bash
-php artisan tinker
->>> config('jnt.webhooks.enabled')
-=> true
-```
-
-**Test endpoint:**
-```bash
-curl -X POST https://yourdomain.com/webhooks/jnt/status \
-  -H "Content-Type: application/json" \
-  -d '{"bizContent": "{}"}'
-# Expected: 401 or 422 (not 404)
-```
-
-### Signature Verification Fails
-
-**Verify private key:**
-```bash
-php artisan tinker
->>> config('jnt.private_key')
-# Should match J&T dashboard value
-```
-
-**Common issues:**
-- Extra whitespace in `.env`
-- Wrong environment (sandbox vs production key)
-- Extra quotes around value
-
-**Fix:**
-```env
-# Correct
-JNT_PRIVATE_KEY=your_key_here
-
-# Wrong
-JNT_PRIVATE_KEY="your_key_here"
-JNT_PRIVATE_KEY= your_key_here
-```
-
-**Clear config:**
-```bash
-php artisan config:clear
-```
-
-### Events Not Firing
-
-**Verify listener registered:**
-```php
-// EventServiceProvider.php must have:
-\AIArmada\Jnt\Events\TrackingUpdated::class => [
-    \App\Listeners\YourListener::class,
-],
-```
-
-**Clear cache:**
-```bash
-php artisan event:clear
-php artisan cache:clear
-```
-
-**Enable debug logging:**
-```env
-JNT_WEBHOOK_LOG_PAYLOADS=true
-```
-
-Check logs:
-```bash
-tail -f storage/logs/laravel.log | grep "J&T"
-```
-
----
-
-## Security
-
-### Signature Verification
-
-Handled by the package's webhook verification flow. To disable (not recommended):
-
-```php
-// config/jnt.php
-'webhooks' => [
-    'verify_signature' => false,
-],
-```
-
-### IP Whitelisting
-
-```php
-// app/Http/Middleware/WhitelistJntIPs.php
-class WhitelistJntIPs
-{
-    protected array $whitelist = [
-        // Add J&T IP addresses
-    ];
-
-    public function handle($request, $next)
-    {
-        if ($request->is('webhooks/jnt/*') && 
-            !in_array($request->ip(), $this->whitelist)) {
-            abort(403);
-        }
-
-        return $next($request);
-    }
-}
-```
-
----
-
-## Configuration Reference
-
-```php
-// config/jnt.php
-'webhooks' => [
-    'enabled' => env('JNT_WEBHOOKS_ENABLED', true),
-    'route' => env('JNT_WEBHOOK_ROUTE', 'webhooks/jnt/status'),
-    'middleware' => ['api'],
-    'verify_signature' => env('JNT_WEBHOOKS_VERIFY_SIGNATURE', true),
-    'log_payloads' => env('JNT_WEBHOOK_LOG_PAYLOADS', false),
-],
-```
-
----
-
-## Best Practices
-
-1. **Always verify signatures** in production
-2. **Use queued listeners** for heavy processing
-3. **Log payloads** only for debugging
-4. **Handle idempotency** – webhooks may be sent multiple times
-5. **Return 200 quickly** – process in background
-6. **Monitor failures** – set up alerts
+Expected failures are `401` for a missing or invalid signature and `422` for malformed webhook content.

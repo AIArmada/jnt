@@ -176,11 +176,11 @@ JNT_CUSTOMER_CODE=your_customer_code
    ],
    ```
 
-2. Add retry logic:
+2. Configure queued webhook retry logic:
    ```php
-   'http' => [
+   'webhooks' => [
        'retry_times' => 5,
-       'retry_delay' => 500, // milliseconds
+       'retry_backoff_seconds' => 60,
    ],
    ```
 

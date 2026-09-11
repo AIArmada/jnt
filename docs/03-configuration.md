@@ -25,8 +25,7 @@ Configure table names and prefixes:
     
 ],
 ```
-JSON column type is controlled by `commerce_json_column_type('jnt', 'json')`. Set `COMMERCE_JSON_COLUMN_TYPE` in your `.env` to override.
-```
+The JSON column type is controlled by `database.json_column_type` and defaults to the shared `commerce-support` setting.
 
 ### Custom Table Names
 
@@ -112,26 +111,12 @@ Configure API request behavior:
 
 ```php
 'http' => [
-    // Request timeout in seconds
     'timeout' => 30,
-    
-    // Connection timeout
     'connect_timeout' => 10,
-    
-    // Number of retry attempts
-    'retry_times' => 3,
-    
-    // Delay between retries (milliseconds)
-    'retry_sleep' => 1000,
 ],
 ```
 
-### Retry Behavior
-
-Requests are automatically retried on:
-- Connection failures
-- Server errors (5xx)
-- Timeout errors
+The HTTP client performs one request. Webhook retries are handled asynchronously by `ProcessJntWebhook`; configure them under `webhooks.retry_times` and `webhooks.retry_backoff_seconds`.
 
 ## Webhooks
 
@@ -153,6 +138,10 @@ Configure webhook handling:
     
     // Log full webhook payloads (debugging only)
     'log_payloads' => env('JNT_WEBHOOK_LOG_PAYLOADS', false),
+
+    // Queue retry policy for webhook processing
+    'retry_times' => env('JNT_WEBHOOK_RETRY_TIMES', 3),
+    'retry_backoff_seconds' => env('JNT_WEBHOOK_RETRY_BACKOFF_SECONDS', 60),
 ],
 ```
 
@@ -210,6 +199,11 @@ The package automatically masks sensitive data in logs:
 
 ## Shipping Rates
 
+Regional multipliers use integer basis points. If an existing configuration uses
+`jnt.shipping.region_multipliers`, migrate each decimal multiplier to
+`jnt.shipping.region_multipliers_bp` by multiplying it by 10,000 (for example,
+`1.5` becomes `15000`). The old key is no longer read.
+
 Configure local rate calculation:
 
 ```php
@@ -240,11 +234,11 @@ Configure local rate calculation:
     // Extra days for East Malaysia
     'east_malaysia_extra_days' => 2,
     
-    // Region multipliers
-    'region_multipliers' => [
-        'sabah' => 1.5,
-        'sarawak' => 1.5,
-        'labuan' => 1.5,
+    // Region multipliers in basis points (10000 = 1.0x)
+    'region_multipliers_bp' => [
+        'sabah' => 15000,
+        'sarawak' => 15000,
+        'labuan' => 15000,
     ],
     
     // Default service details
@@ -348,8 +342,6 @@ return [
     'http' => [
         'timeout' => 30,
         'connect_timeout' => 10,
-        'retry_times' => 3,
-        'retry_sleep' => 1000,
     ],
 
     /*
@@ -363,6 +355,8 @@ return [
         'middleware' => ['api'],
         'verify_signature' => env('JNT_WEBHOOKS_VERIFY_SIGNATURE', true),
         'log_payloads' => env('JNT_WEBHOOK_LOG_PAYLOADS', false),
+        'retry_times' => env('JNT_WEBHOOK_RETRY_TIMES', 3),
+        'retry_backoff_seconds' => env('JNT_WEBHOOK_RETRY_BACKOFF_SECONDS', 60),
     ],
 
     /*
@@ -407,10 +401,10 @@ return [
         'min_charge' => 800,
         'default_estimated_days' => 3,
         'east_malaysia_extra_days' => 2,
-        'region_multipliers' => [
-            'sabah' => 1.5,
-            'sarawak' => 1.5,
-            'labuan' => 1.5,
+        'region_multipliers_bp' => [
+            'sabah' => 15000,
+            'sarawak' => 15000,
+            'labuan' => 15000,
         ],
     ],
 ];

@@ -32,7 +32,7 @@ The `aiarmada/jnt` package is the J&T Express Malaysia carrier adapter for the C
 
 - **Models** — `JntOrder`, `JntOrderItem`, `JntOrderParcel`, `JntTrackingEvent`, `JntWebhookLog`
 - **Core surfaces** — J&T service, builders, HTTP client, shipping driver, commands, webhook handlers, and notifications
-- **Events** — order created/cancelled, tracking updates, parcel lifecycle events, and status changes
+- **Events** — order created/cancelled, typed tracking updates, waybill generation, and status changes
 
 ## Owner scoping and security notes
 
@@ -53,7 +53,7 @@ A comprehensive Laravel package for integrating J&T Express Malaysia shipping se
 - **Shipping Abstraction** - Implements unified shipping driver interface
 - **Artisan Commands** - CLI tools for configuration, health checks, and operations
 - **Notifications** - Built-in notification classes for order status updates
-- **Comprehensive Events** - Laravel events for all shipping lifecycle stages
+- **Comprehensive Events** - Laravel events for order, waybill, tracking, and status outcomes
 
 ## Architecture
 
@@ -144,12 +144,9 @@ The package dispatches events at key lifecycle points:
 
 - `OrderCreatedEvent` - New order created successfully
 - `OrderCancelledEvent` - Order was cancelled
-- `TrackingUpdated` - Generic tracking update from webhook processing
+- `TrackingUpdatedEvent` - Typed tracking update from webhook processing
 - `JntOrderStatusChanged` - Order status changed
-- `ParcelPickedUp` - Parcel collected by courier
-- `ParcelInTransit` - Parcel in transit
-- `ParcelOutForDelivery` - Out for final delivery
-- `ParcelDelivered` - Successfully delivered
+- `WaybillPrintedEvent` - Waybill generated successfully
 
 ## Artisan Commands
 

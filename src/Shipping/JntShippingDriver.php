@@ -365,26 +365,25 @@ class JntShippingDriver implements ShippingDriverInterface
      */
     protected function calculateWeightBasedRate(int $weightGrams, AddressData $destination): int
     {
-        $weightKg = max(1, ceil($weightGrams / 1000));
+        $weightKg = max(1, (int) ceil($weightGrams / 1000));
 
-        // Base rate configuration
-        $baseRate = config('jnt.shipping.base_rate', 800); // RM8.00
-        $perKgRate = config('jnt.shipping.per_kg_rate', 200); // RM2.00 per additional kg
-        $regionMultiplier = $this->getRegionMultiplier($destination);
+        $baseRate = (int) config('jnt.shipping.base_rate', 800);
+        $perKgRate = (int) config('jnt.shipping.per_kg_rate', 200);
+        $regionMultiplierBasisPoints = $this->getRegionMultiplierBasisPoints($destination);
 
         $rate = $baseRate + (max(0, $weightKg - 1) * $perKgRate);
 
-        return (int) round($rate * $regionMultiplier);
+        return intdiv(($rate * $regionMultiplierBasisPoints) + 5000, 10000);
     }
 
     /**
-     * Get region multiplier for pricing.
+     * Get region multiplier basis points for pricing (10000 = 1x).
      */
-    protected function getRegionMultiplier(AddressData $destination): float
+    protected function getRegionMultiplierBasisPoints(AddressData $destination): int
     {
         $postcode = $destination->postcode;
+        $regionMultipliers = config('jnt.shipping.region_multipliers_bp', []);
 
-        // East Malaysia (Sabah/Sarawak) - higher rates
         $eastMalaysiaRanges = [
             ['87000', '91999'], // Sabah
             ['93000', '98999'], // Sarawak
@@ -393,14 +392,14 @@ class JntShippingDriver implements ShippingDriverInterface
         foreach ($eastMalaysiaRanges as $range) {
             if ($postcode >= $range[0] && $postcode <= $range[1]) {
                 return match (true) {
-                    $postcode >= '87000' && $postcode <= '91999' => (float) Arr::get(config('jnt.shipping.region_multipliers', []), 'sabah', 1.5),
-                    $postcode >= '93000' && $postcode <= '98999' => (float) Arr::get(config('jnt.shipping.region_multipliers', []), 'sarawak', 1.5),
-                    default => (float) Arr::get(config('jnt.shipping.region_multipliers', []), 'labuan', 1.5),
+                    $postcode >= '87000' && $postcode <= '91999' => (int) Arr::get($regionMultipliers, 'sabah', 15000),
+                    $postcode >= '93000' && $postcode <= '98999' => (int) Arr::get($regionMultipliers, 'sarawak', 15000),
+                    default => (int) Arr::get($regionMultipliers, 'labuan', 15000),
                 };
             }
         }
 
-        return 1.0;
+        return 10000;
     }
 
     /**

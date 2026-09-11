@@ -39,15 +39,11 @@ class JntClient
 
         $this->logRequest($endpoint, $bizContent);
 
-        $retryTimes = $this->config['http']['retry_times'] ?? 3;
-        $retrySleep = $this->config['http']['retry_sleep'] ?? 1000;
-
-        $request = function () use ($endpoint, $jsonBizContent, $digest, $retryTimes, $retrySleep): Response {
+        $request = function () use ($endpoint, $jsonBizContent, $digest): Response {
             $timestamp = (int) (microtime(true) * 1000);
 
             return Http::timeout($this->config['http']['timeout'] ?? 30)
                 ->connectTimeout($this->config['http']['connect_timeout'] ?? 10)
-                ->retry($retryTimes, $retrySleep, fn ($exception, $request): bool => $exception instanceof ConnectionException, throw: false)
                 ->withHeaders([
                     'apiAccount' => $this->apiAccount,
                     'digest' => $digest,
@@ -63,21 +59,6 @@ class JntClient
             $response = $request();
 
             $this->logResponse($response);
-
-            // If we got a 5xx error, retry manually with fresh timestamp
-            if ($response->status() >= 500 && $response->status() < 600) {
-                for ($attempt = 2; $attempt <= $retryTimes; $attempt++) {
-                    usleep($retrySleep * 1000);
-
-                    $response = $request();
-
-                    $this->logResponse($response);
-
-                    if ($response->status() < 500) {
-                        break;
-                    }
-                }
-            }
 
             if ($response->failed()) {
                 $statusCode = $response->status();
@@ -113,12 +94,6 @@ class JntClient
         } catch (ConnectionException $connectionException) {
             throw JntNetworkException::connectionFailed($endpoint, $connectionException);
         }
-    }
-
-    protected function shouldRetry(mixed $exception): bool
-    {
-        // Retry on connection errors
-        return $exception instanceof ConnectionException;
     }
 
     protected function generateDigest(string $bizContent): string

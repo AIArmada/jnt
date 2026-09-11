@@ -79,10 +79,10 @@ return [
         'default_service_name' => env('JNT_SERVICE_NAME', 'J&T Express'),
         'default_service_type' => env('JNT_SERVICE_TYPE', 'EZ'),
 
-        'region_multipliers' => [
-            'sabah' => 1.5,
-            'sarawak' => 1.5,
-            'labuan' => 1.5,
+        'region_multipliers_bp' => [
+            'sabah' => env('JNT_SABAH_MULTIPLIER_BP', 15000),
+            'sarawak' => env('JNT_SARAWAK_MULTIPLIER_BP', 15000),
+            'labuan' => env('JNT_LABUAN_MULTIPLIER_BP', 15000),
         ],
     ],
 
@@ -92,7 +92,6 @@ return [
     |--------------------------------------------------------------------------
     */
     'cart' => [
-        'register_manager_proxy' => env('JNT_CART_REGISTER_PROXY', true),
         'quote_ttl_minutes' => env('JNT_QUOTE_TTL', 30),
     ],
 
@@ -104,8 +103,6 @@ return [
     'http' => [
         'timeout' => env('JNT_HTTP_TIMEOUT', 30),
         'connect_timeout' => env('JNT_HTTP_CONNECT_TIMEOUT', 10),
-        'retry_times' => env('JNT_HTTP_RETRY_TIMES', 3),
-        'retry_sleep' => env('JNT_HTTP_RETRY_SLEEP', 1000),
     ],
 
     /*
@@ -123,6 +120,8 @@ return [
         'middleware' => ['api'],
         'log_payloads' => env('JNT_WEBHOOK_LOG_PAYLOADS', false),
         'verify_signature' => env('JNT_WEBHOOKS_VERIFY_SIGNATURE', true),
+        'retry_times' => env('JNT_WEBHOOK_RETRY_TIMES', 3),
+        'retry_backoff_seconds' => env('JNT_WEBHOOK_RETRY_BACKOFF_SECONDS', 60),
     ],
 
     /*

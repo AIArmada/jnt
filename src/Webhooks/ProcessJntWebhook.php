@@ -6,13 +6,10 @@ namespace AIArmada\Jnt\Webhooks;
 
 use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Webhooks\CommerceWebhookProcessor;
+use AIArmada\Jnt\Data\TrackingData;
 use AIArmada\Jnt\Enums\ScanTypeCode;
 use AIArmada\Jnt\Enums\TrackingStatus;
-use AIArmada\Jnt\Events\ParcelDelivered;
-use AIArmada\Jnt\Events\ParcelInTransit;
-use AIArmada\Jnt\Events\ParcelOutForDelivery;
-use AIArmada\Jnt\Events\ParcelPickedUp;
-use AIArmada\Jnt\Events\TrackingUpdated;
+use AIArmada\Jnt\Events\TrackingUpdatedEvent;
 use AIArmada\Jnt\Models\JntOrder;
 use AIArmada\Jnt\Models\JntTrackingEvent;
 use AIArmada\Jnt\Models\JntWebhookLog;
@@ -20,6 +17,7 @@ use AIArmada\Jnt\Services\JntStatusMapper;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Log;
+use Spatie\WebhookClient\Models\WebhookCall;
 
 /**
  * Process J&T Express webhook events.
@@ -28,6 +26,20 @@ use Illuminate\Support\Facades\Log;
  */
 class ProcessJntWebhook extends CommerceWebhookProcessor
 {
+    public int $tries = 1;
+
+    public function __construct(WebhookCall $webhookCall)
+    {
+        parent::__construct($webhookCall);
+
+        $this->tries = max(1, (int) config('jnt.webhooks.retry_times', 3));
+    }
+
+    public function backoff(): int
+    {
+        return max(1, (int) config('jnt.webhooks.retry_backoff_seconds', 60));
+    }
+
     /**
      * @param  array<string, mixed>  $payload
      */
@@ -172,8 +184,7 @@ class ProcessJntWebhook extends CommerceWebhookProcessor
                     'webhook_call_id' => $this->webhookCall->id,
                 ]);
 
-            // Still dispatch generic tracking event
-            TrackingUpdated::dispatch($billcode, $eventType, $biz);
+            $this->dispatchTrackingEvent($biz);
 
             return;
         }
@@ -191,11 +202,7 @@ class ProcessJntWebhook extends CommerceWebhookProcessor
 
             $this->syncShipmentTrackingFromWebhook($shipment, $billcode, $biz, $newStatus);
 
-            if ($newStatus) {
-                $this->dispatchStatusEvent($shipment, $newStatus, $biz);
-            }
-
-            TrackingUpdated::dispatch($billcode, $eventType, $biz);
+            $this->dispatchTrackingEvent($biz);
         });
     }
 
@@ -219,19 +226,13 @@ class ProcessJntWebhook extends CommerceWebhookProcessor
     }
 
     /**
-     * Dispatch status-specific events.
+     * Dispatch the canonical typed tracking event for both known and unknown orders.
      *
      * @param  array<string, mixed>  $payload
      */
-    protected function dispatchStatusEvent(JntOrder $shipment, TrackingStatus $status, array $payload): void
+    private function dispatchTrackingEvent(array $payload): void
     {
-        match ($status) {
-            TrackingStatus::PickedUp => ParcelPickedUp::dispatch($shipment, $payload),
-            TrackingStatus::InTransit => ParcelInTransit::dispatch($shipment, $payload),
-            TrackingStatus::OutForDelivery => ParcelOutForDelivery::dispatch($shipment, $payload),
-            TrackingStatus::Delivered => ParcelDelivered::dispatch($shipment, $payload),
-            default => null,
-        };
+        TrackingUpdatedEvent::dispatch(TrackingData::fromApiArray($payload));
     }
 
     /**

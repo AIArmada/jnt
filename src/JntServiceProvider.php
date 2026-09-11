@@ -6,7 +6,6 @@ namespace AIArmada\Jnt;
 
 use AIArmada\Cart\Conditions\ConditionProviderRegistry;
 use AIArmada\Jnt\Cart\JntShippingCalculator;
-use AIArmada\Jnt\Cart\JntShippingConditionProvider;
 use AIArmada\Jnt\Console\Commands\Health\HealthCheckCommand;
 use AIArmada\Jnt\Console\Commands\Orders\ConfigCheckCommand;
 use AIArmada\Jnt\Console\Commands\Orders\OrderCancelCommand;
@@ -21,7 +20,6 @@ use AIArmada\Jnt\Services\JntStatusMapper;
 use AIArmada\Jnt\Services\JntTrackingService;
 use AIArmada\Jnt\Services\WebhookService;
 use AIArmada\Jnt\Shipping\JntShippingDriver;
-use AIArmada\Jnt\Support\Integrations\CartIntegrationRegistrar;
 use AIArmada\Jnt\Support\StatusMappingStrategyRegistry;
 use AIArmada\Jnt\Webhooks\JntSpatieSignatureValidator;
 use AIArmada\Jnt\Webhooks\JntWebhookProfile;
@@ -95,7 +93,6 @@ class JntServiceProvider extends PackageServiceProvider
      */
     public function bootingPackage(): void
     {
-        $this->registerCartIntegration();
         $this->registerCartConditionProvider();
         $this->registerShippingDriver();
         $this->registerEventListeners();
@@ -218,14 +215,6 @@ class JntServiceProvider extends PackageServiceProvider
                 fn (): JntShippingCalculator => new JntShippingCalculator
             );
 
-            $this->app->singleton(
-                JntShippingConditionProvider::class,
-                fn (Application $app): JntShippingConditionProvider => new JntShippingConditionProvider(
-                    $app->make(JntShippingCalculator::class)
-                )
-            );
-
-            $this->app->singleton(CartIntegrationRegistrar::class);
         }
 
         if (class_exists(ShippingManager::class)) {
@@ -251,21 +240,7 @@ class JntServiceProvider extends PackageServiceProvider
         }
 
         $this->app->make(ConditionProviderRegistry::class)
-            ->register(JntShippingConditionProvider::class);
-    }
-
-    /**
-     * Register cart integration if enabled.
-     */
-    protected function registerCartIntegration(): void
-    {
-        if (! class_exists('AIArmada\\Cart\\CartManager')) {
-            return;
-        }
-
-        if (config('jnt.cart.register_manager_proxy', true)) {
-            $this->app->make(CartIntegrationRegistrar::class)->register();
-        }
+            ->register(JntShippingCalculator::class);
     }
 
     /**

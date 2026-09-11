@@ -5,17 +5,30 @@ declare(strict_types=1);
 namespace AIArmada\Jnt\Cart;
 
 use AIArmada\Cart\Cart;
+use AIArmada\Cart\Conditions\CartCondition;
+use AIArmada\Cart\Conditions\Enums\ConditionApplication;
+use AIArmada\Cart\Conditions\Enums\ConditionPhase;
+use AIArmada\Cart\Conditions\Enums\ConditionScope;
+use AIArmada\Cart\Contracts\ConditionProviderInterface;
 use AIArmada\Jnt\Data\AddressData;
 use Carbon\CarbonImmutable;
 
 /**
- * Calculates J&T Express shipping rates for cart contents.
+ * Calculates J&T Express shipping rates and exposes them as cart conditions.
  *
- * This service bridges cart item data with J&T's shipping rate API,
- * calculating total weight and dimensions for accurate quotes.
+ * This is the single cart integration path for J&T. Monetary values remain
+ * integer minor units from configuration through the generated quote.
  */
-class JntShippingCalculator
+final class JntShippingCalculator implements ConditionProviderInterface
 {
+    private const string CONDITION_TYPE = 'shipping';
+
+    private const string SHIPPING_ADDRESS_KEY = 'jnt_shipping_address';
+
+    private const string SHIPPING_QUOTE_KEY = 'jnt_shipping_quote';
+
+    private const int PRIORITY = 75;
+
     /**
      * Calculate shipping cost for the cart to a destination address.
      *
@@ -29,21 +42,15 @@ class JntShippingCalculator
             return null;
         }
 
-        $originAddress = $this->getOriginAddress();
-
-        if ($originAddress === null) {
+        if ($this->getOriginAddress() === null) {
             return null;
         }
 
-        // For now, use a configurable flat rate or weight-based calculation
-        // Full J&T API integration for dynamic rates would go here
-        $rate = $this->calculateWeightBasedRate($totalWeight, $destination);
-
         return [
-            'service_name' => config('jnt.shipping.default_service_name', 'J&T Express'),
-            'service_type' => config('jnt.shipping.default_service_type', 'EZ'),
-            'amount' => $rate,
-            'weight_kg' => $totalWeight / 1000, // Convert grams to kg
+            'service_name' => (string) config('jnt.shipping.default_service_name', 'J&T Express'),
+            'service_type' => (string) config('jnt.shipping.default_service_type', 'EZ'),
+            'amount' => $this->calculateWeightBasedRate($totalWeight, $destination),
+            'weight_kg' => $totalWeight / 1000,
             'estimated_days' => $this->getEstimatedDays($destination),
             'calculated_at' => CarbonImmutable::now()->toISOString(),
             'cart_weight' => $totalWeight,
@@ -68,6 +75,57 @@ class JntShippingCalculator
     }
 
     /**
+     * Get shipping conditions applicable to the cart.
+     *
+     * @return array<CartCondition>
+     */
+    public function getConditionsFor(Cart $cart): array
+    {
+        /** @var array<string, mixed>|null $shippingAddress */
+        $shippingAddress = $cart->getMetadata(self::SHIPPING_ADDRESS_KEY);
+
+        if ($shippingAddress === null) {
+            return [];
+        }
+
+        /** @var array<string, mixed>|null $cachedQuote */
+        $cachedQuote = $cart->getMetadata(self::SHIPPING_QUOTE_KEY);
+
+        if ($cachedQuote !== null && $this->isQuoteValid($cachedQuote, $cart)) {
+            return [$this->createConditionFromQuote($cachedQuote)];
+        }
+
+        $quote = $this->calculateShipping($cart, AddressData::fromApiArray($shippingAddress));
+
+        if ($quote === null) {
+            return [];
+        }
+
+        $cart->setMetadata(self::SHIPPING_QUOTE_KEY, $quote);
+
+        return [$this->createConditionFromQuote($quote)];
+    }
+
+    public function validate(CartCondition $condition, Cart $cart): bool
+    {
+        if ($condition->getType() !== self::CONDITION_TYPE) {
+            return true;
+        }
+
+        return $cart->getMetadata(self::SHIPPING_ADDRESS_KEY) !== null;
+    }
+
+    public function getType(): string
+    {
+        return self::CONDITION_TYPE;
+    }
+
+    public function getPriority(): int
+    {
+        return self::PRIORITY;
+    }
+
+    /**
      * Get the origin (sender) address from configuration.
      */
     private function getOriginAddress(): ?AddressData
@@ -79,58 +137,58 @@ class JntShippingCalculator
         }
 
         return new AddressData(
-            name: $origin['name'],
-            phone: $origin['phone'] ?? '',
-            address: $origin['address'] ?? '',
-            postCode: $origin['post_code'] ?? '',
-            countryCode: $origin['country_code'] ?? 'MYS',
-            state: $origin['state'] ?? null,
-            city: $origin['city'] ?? null,
+            name: (string) $origin['name'],
+            phone: (string) ($origin['phone'] ?? ''),
+            address: (string) ($origin['address'] ?? ''),
+            postCode: (string) ($origin['post_code'] ?? ''),
+            countryCode: (string) ($origin['country_code'] ?? 'MYS'),
+            state: isset($origin['state']) ? (string) $origin['state'] : null,
+            city: isset($origin['city']) ? (string) $origin['city'] : null,
         );
     }
 
     /**
-     * Calculate weight-based shipping rate.
-     *
-     * Uses configurable rates per kg with minimum charge.
-     *
-     * @param  int  $weightGrams  Total weight in grams
+     * Calculate a weight-based shipping rate in integer minor units.
      */
     private function calculateWeightBasedRate(int $weightGrams, AddressData $destination): int
     {
-        $weightKg = ceil($weightGrams / 1000);
-        $baseRate = (int) config('jnt.shipping.base_rate', 800); // RM8.00 default in cents
-        $perKgRate = (int) config('jnt.shipping.per_kg_rate', 200); // RM2.00 per kg in cents
-        $minCharge = (int) config('jnt.shipping.min_charge', 800); // RM8.00 minimum
+        $weightKg = (int) ceil($weightGrams / 1000);
+        $baseRate = (int) config('jnt.shipping.base_rate', 800);
+        $perKgRate = (int) config('jnt.shipping.per_kg_rate', 200);
+        $minCharge = (int) config('jnt.shipping.min_charge', 800);
+        $regionMultiplierBasisPoints = $this->getRegionMultiplierBasisPoints($destination);
 
-        // Calculate based on destination region if configured
-        $regionMultiplier = $this->getRegionMultiplier($destination);
-
-        $rate = (int) (($baseRate + ($perKgRate * max(0, $weightKg - 1))) * $regionMultiplier);
+        $rate = $baseRate + ($perKgRate * max(0, $weightKg - 1));
+        $rate = $this->applyRegionMultiplier($rate, $regionMultiplierBasisPoints);
 
         return max($rate, $minCharge);
     }
 
     /**
-     * Get region-based rate multiplier for destination.
+     * Resolve a regional multiplier represented as basis points (10000 = 1x).
      */
-    private function getRegionMultiplier(AddressData $destination): float
+    private function getRegionMultiplierBasisPoints(AddressData $destination): int
     {
-        $regionRates = config('jnt.shipping.region_multipliers', []);
+        $regionRates = config('jnt.shipping.region_multipliers_bp', []);
 
-        if (! is_array($regionRates) || empty($regionRates)) {
-            return 1.0;
+        if (! is_array($regionRates) || $regionRates === []) {
+            return 10000;
         }
 
         $state = mb_strtolower($destination->state ?? '');
 
-        foreach ($regionRates as $region => $multiplier) {
-            if (str_contains($state, mb_strtolower($region))) {
-                return (float) $multiplier;
+        foreach ($regionRates as $region => $basisPoints) {
+            if (str_contains($state, mb_strtolower((string) $region))) {
+                return (int) $basisPoints;
             }
         }
 
-        return 1.0;
+        return 10000;
+    }
+
+    private function applyRegionMultiplier(int $rate, int $basisPoints): int
+    {
+        return intdiv(($rate * $basisPoints) + 5000, 10000);
     }
 
     /**
@@ -140,8 +198,6 @@ class JntShippingCalculator
     {
         $defaultDays = (int) config('jnt.shipping.default_estimated_days', 3);
         $eastExtraDays = (int) config('jnt.shipping.east_malaysia_extra_days', 2);
-
-        // East Malaysia takes longer
         $eastMalaysiaStates = ['sabah', 'sarawak', 'labuan'];
         $state = mb_strtolower($destination->state ?? '');
 
@@ -152,5 +208,71 @@ class JntShippingCalculator
         }
 
         return $defaultDays;
+    }
+
+    /**
+     * @param  array<string, mixed>  $quote
+     */
+    private function createConditionFromQuote(array $quote): CartCondition
+    {
+        return new CartCondition(
+            name: (string) ($quote['service_name'] ?? 'jnt_shipping'),
+            type: self::CONDITION_TYPE,
+            target: $this->buildTargetDefinition(),
+            value: (string) ($quote['amount'] ?? 0),
+            attributes: $this->buildAttributes($quote),
+            order: self::PRIORITY,
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildTargetDefinition(): array
+    {
+        return [
+            'scope' => ConditionScope::CART->value,
+            'phase' => ConditionPhase::SHIPPING->value,
+            'application' => ConditionApplication::AGGREGATE->value,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $quote
+     * @return array<string, mixed>
+     */
+    private function buildAttributes(array $quote): array
+    {
+        return [
+            'provider' => 'jnt',
+            'service_type' => $quote['service_type'] ?? 'standard',
+            'service_name' => $quote['service_name'] ?? 'J&T Express',
+            'estimated_days' => $quote['estimated_days'] ?? null,
+            'weight_kg' => $quote['weight_kg'] ?? null,
+            'calculated_at' => $quote['calculated_at'] ?? CarbonImmutable::now()->toISOString(),
+            'quote_id' => $quote['quote_id'] ?? null,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $quote
+     */
+    private function isQuoteValid(array $quote, Cart $cart): bool
+    {
+        $calculatedAt = $quote['calculated_at'] ?? null;
+        $ttlMinutes = (int) config('jnt.cart.quote_ttl_minutes', 30);
+
+        if ($calculatedAt !== null) {
+            $expiresAt = CarbonImmutable::parse((string) $calculatedAt)->addMinutes($ttlMinutes);
+
+            if (CarbonImmutable::now()->isAfter($expiresAt)) {
+                return false;
+            }
+        }
+
+        $quotedWeight = $quote['cart_weight'] ?? null;
+        $currentWeight = $this->getCartWeight($cart);
+
+        return $quotedWeight === null || $quotedWeight === $currentWeight;
     }
 }

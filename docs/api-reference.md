@@ -289,18 +289,18 @@ try {
 
 ## Events
 
-### TrackingUpdated
+### TrackingUpdatedEvent
 
 Dispatched when the webhook processor receives a tracking update.
 
 ```php
-use AIArmada\Jnt\Events\TrackingUpdated;
+use AIArmada\Jnt\Events\TrackingUpdatedEvent;
 
-public function handle(TrackingUpdated $event): void
+public function handle(TrackingUpdatedEvent $event): void
 {
-    $event->billcode;   // J&T tracking number
-    $event->eventType;  // Scan type / derived event name
-    $event->payload;    // Decoded bizContent payload
+    $event->getTrackingNumber(); // J&T tracking number
+    $event->getOrderId();        // Local order reference, when supplied
+    $event->getLatestStatus();   // Latest typed scan status
 }
 ```
 

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace AIArmada\Jnt\Models;
 
 use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
+use AIArmada\CommerceSupport\Support\OwnerContext;
+use AIArmada\CommerceSupport\Support\OwnerWriteGuard;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use Carbon\CarbonImmutable;
@@ -12,6 +14,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use InvalidArgumentException;
+use Throwable;
 
 /**
  * @property int $id
@@ -32,7 +35,7 @@ use InvalidArgumentException;
  * @property CarbonImmutable|null $updated_at
  * @property-read JntOrder|null $order
  *
- * @method static Builder<static> forOwner(?Model $owner, bool $includeGlobal = true)
+ * @method static Builder<static> forOwner(?Model $owner, bool $includeGlobal = false)
  */
 final class JntWebhookLog extends Model
 {
@@ -47,7 +50,7 @@ final class JntWebhookLog extends Model
     protected static function booted(): void
     {
         static::addGlobalScope('jnt_webhook_calls', function (Builder $builder): void {
-            $builder->where('name', self::WEBHOOK_NAME);
+            $builder->where($builder->getModel()->qualifyColumn('name'), self::WEBHOOK_NAME);
         });
 
         static::creating(function (JntWebhookLog $log): void {
@@ -58,8 +61,21 @@ final class JntWebhookLog extends Model
                 return;
             }
 
-            // Always fetch parent order without scope to detect cross-owner writes.
-            $order = JntOrder::query()->withoutOwnerScope()->find($log->order_id);
+            try {
+                if (config('jnt.owner.enabled', false)) {
+                    /** @var JntOrder $order */
+                    $order = OwnerWriteGuard::findOrFailForOwner(
+                        modelClass: JntOrder::class,
+                        id: $log->order_id,
+                        owner: OwnerContext::CURRENT,
+                        includeGlobal: (bool) config('jnt.owner.include_global', false),
+                    );
+                } else {
+                    $order = JntOrder::query()->find($log->order_id);
+                }
+            } catch (Throwable $exception) {
+                throw new InvalidArgumentException('Invalid order_id for JntWebhookLog.', previous: $exception);
+            }
 
             if ($order === null) {
                 throw new InvalidArgumentException('Invalid order_id for JntWebhookLog.');

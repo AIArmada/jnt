@@ -177,21 +177,20 @@ Receive real-time tracking updates from J&T.
    JNT_WEBHOOKS_ENABLED=true
    ```
 
-2. **Create a listener**:
+2. **Create a listener** for the canonical typed tracking event:
    ```php
    namespace App\Listeners;
 
-   use AIArmada\Jnt\Events\TrackingStatusReceived;
+   use AIArmada\Jnt\Events\TrackingUpdatedEvent;
 
-   class UpdateOrderTracking
+   final class UpdateOrderTracking
    {
-       public function handle(TrackingStatusReceived $event): void
+       public function handle(TrackingUpdatedEvent $event): void
        {
-           $order = Order::where('tracking_number', $event->trackingNumber)->first();
-           
-           $order?->update([
-               'tracking_status' => $event->lastStatus,
-               'tracking_time' => $event->scanTime,
+           logger()->info('J&T tracking update', [
+               'tracking_number' => $event->getTrackingNumber(),
+               'order_id' => $event->getOrderId(),
+               'status' => $event->getLatestStatus(),
            ]);
        }
    }
@@ -201,7 +200,7 @@ Receive real-time tracking updates from J&T.
    ```php
    // EventServiceProvider.php
    protected $listen = [
-       \AIArmada\Jnt\Events\TrackingStatusReceived::class => [
+       \AIArmada\Jnt\Events\TrackingUpdatedEvent::class => [
            \App\Listeners\UpdateOrderTracking::class,
        ],
    ];
