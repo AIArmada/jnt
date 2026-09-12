@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace AIArmada\Jnt\Services;
 
+use AIArmada\CommerceSupport\Support\OwnerCache;
+use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\Jnt\Builders\OrderBuilder;
 use AIArmada\Jnt\Data\AddressData;
 use AIArmada\Jnt\Data\ItemData;
@@ -16,6 +18,7 @@ use AIArmada\Jnt\Exceptions\JntConfigurationException;
 use AIArmada\Jnt\Exceptions\JntValidationException;
 use AIArmada\Jnt\Http\JntClient;
 use AIArmada\Jnt\Support\FieldNameConverter;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Concurrency;
 use Illuminate\Support\Str;
 use Throwable;
@@ -183,6 +186,12 @@ class JntExpressService
             throw JntValidationException::requiredFieldMissing('orderId or trackingNumber');
         }
 
+        $cachedTrackingData = $this->cachedTrackingData($orderId, $trackingNumber);
+
+        if ($cachedTrackingData instanceof TrackingData) {
+            return $cachedTrackingData;
+        }
+
         $payload = [
             'customerCode' => $this->getCustomerCode(),
             'password' => $this->getPassword(),
@@ -198,7 +207,91 @@ class JntExpressService
 
         $response = $this->getClient()->post('/api/logistics/trace', $payload);
 
-        return TrackingData::fromApiArray($response['data']);
+        $trackingData = TrackingData::fromApiArray($response['data']);
+
+        $this->cacheTrackingData($trackingData, $orderId, $trackingNumber);
+
+        return $trackingData;
+    }
+
+    private function cachedTrackingData(?string $orderId, ?string $trackingNumber): ?TrackingData
+    {
+        $debounceMinutes = $this->trackingPollingDebounceMinutes();
+
+        if ($debounceMinutes === 0) {
+            return null;
+        }
+
+        $owner = OwnerContext::resolve();
+
+        foreach ($this->trackingCacheIdentifiers($orderId, $trackingNumber) as $identifier) {
+            $cached = OwnerCache::get($owner, $this->trackingCacheKey($identifier));
+
+            if (! is_array($cached) || ! is_string($cached['last_polled_at'] ?? null) || ! is_array($cached['tracking_data'] ?? null)) {
+                continue;
+            }
+
+            try {
+                $lastPolledAt = CarbonImmutable::parse($cached['last_polled_at']);
+
+                if (! $lastPolledAt->greaterThan(CarbonImmutable::now()->subMinutes($debounceMinutes))) {
+                    continue;
+                }
+
+                return TrackingData::fromApiArray($cached['tracking_data']);
+            } catch (Throwable) {
+                continue;
+            }
+        }
+
+        return null;
+    }
+
+    private function cacheTrackingData(TrackingData $trackingData, ?string $orderId, ?string $trackingNumber): void
+    {
+        $debounceMinutes = $this->trackingPollingDebounceMinutes();
+
+        if ($debounceMinutes === 0) {
+            return;
+        }
+
+        $cached = [
+            'last_polled_at' => CarbonImmutable::now()->toIso8601String(),
+            'tracking_data' => $trackingData->toApiArray(),
+        ];
+        $owner = OwnerContext::resolve();
+
+        foreach ($this->trackingCacheIdentifiers($orderId, $trackingNumber, $trackingData) as $identifier) {
+            OwnerCache::put(
+                $owner,
+                $this->trackingCacheKey($identifier),
+                $cached,
+                $debounceMinutes * 60,
+            );
+        }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function trackingCacheIdentifiers(?string $orderId, ?string $trackingNumber, ?TrackingData $trackingData = null): array
+    {
+        return array_values(array_unique(array_filter([
+            $orderId,
+            $trackingNumber,
+            $trackingData?->orderId,
+            $trackingData?->trackingNumber,
+        ], static fn (?string $identifier): bool => $identifier !== null && $identifier !== '')));
+    }
+
+    private function trackingCacheKey(string $identifier): string
+    {
+        return 'jnt.tracking.poll.' . sha1(($this->customerCode ?? '') . '|' . $identifier);
+    }
+
+    private function trackingPollingDebounceMinutes(): int
+    {
+        return max(0, (int) ($this->config['tracking']['polling_debounce_minutes'] ?? 15));
     }
 
     /**

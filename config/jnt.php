@@ -52,6 +52,10 @@ return [
         'auto_assign_on_create' => env('JNT_OWNER_AUTO_ASSIGN', true),
     ],
 
+    'tracking' => [
+        'polling_debounce_minutes' => env('JNT_TRACKING_POLLING_DEBOUNCE_MINUTES', 15),
+    ],
+
     'notifications' => [
         'enabled' => env('JNT_NOTIFICATIONS_ENABLED', true),
         'queue' => env('JNT_NOTIFICATIONS_QUEUE', true),

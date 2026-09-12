@@ -105,6 +105,18 @@ Toggle package features:
 ],
 ```
 
+## Tracking polling
+
+Tracking responses are cached per owner and order/tracking identifier for the configured debounce window:
+
+```php
+'tracking' => [
+    'polling_debounce_minutes' => 15,
+],
+```
+
+Set `JNT_TRACKING_POLLING_DEBOUNCE_MINUTES` to change the window. Set it to `0` to disable the cache.
+
 ## HTTP Client
 
 Configure API request behavior:
