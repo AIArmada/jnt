@@ -459,3 +459,23 @@ $error->isRetryable();    // Should retry?
 $error->isClientError();  // 4xx-equivalent?
 $error->getCategory();    // "Authentication", "Validation", etc.
 ```
+
+## Tracking events and cart rating
+
+Subscribe to `TrackingUpdatedEvent` and rate carts through `JntShippingCalculator`:
+
+```php
+use AIArmada\Jnt\Cart\JntShippingCalculator;
+use AIArmada\Jnt\Events\TrackingUpdatedEvent;
+
+final class RecordTrackingUpdate
+{
+    public function handle(TrackingUpdatedEvent $event): void
+    {
+        $event->getTrackingNumber();
+        $event->getLatestStatus();
+    }
+}
+```
+
+`JntShippingCalculator` is the single cart integration path (it reads the `jnt_shipping_address` cart metadata shown above); `TrackingUpdatedEvent` carries typed `TrackingData` for every processed tracking webhook. See `08-events.md` for the full event summary.
