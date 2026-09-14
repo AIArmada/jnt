@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace AIArmada\Jnt;
 
 use AIArmada\Cart\Conditions\ConditionProviderRegistry;
+use AIArmada\CommerceSupport\Contracts\OwnerResolverInterface;
+use AIArmada\CommerceSupport\Support\NullOwnerResolver;
 use AIArmada\Jnt\Cart\JntShippingCalculator;
 use AIArmada\Jnt\Console\Commands\Health\HealthCheckCommand;
 use AIArmada\Jnt\Console\Commands\Orders\ConfigCheckCommand;
@@ -28,6 +30,7 @@ use AIArmada\Jnt\Webhooks\ProcessJntWebhook;
 use AIArmada\Shipping\ShippingManager;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Facades\Event;
+use RuntimeException;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 use Spatie\WebhookClient\Models\WebhookCall;
@@ -93,9 +96,25 @@ class JntServiceProvider extends PackageServiceProvider
      */
     public function bootingPackage(): void
     {
+        $this->assertOwnerResolverConfigured();
         $this->registerCartConditionProvider();
         $this->registerShippingDriver();
         $this->registerEventListeners();
+    }
+
+    protected function assertOwnerResolverConfigured(): void
+    {
+        if (! (bool) config('jnt.owner.enabled', false)) {
+            return;
+        }
+
+        if (! $this->app->bound(OwnerResolverInterface::class)) {
+            return;
+        }
+
+        if ($this->app->make(OwnerResolverInterface::class) instanceof NullOwnerResolver) {
+            throw new RuntimeException('jnt.owner.enabled requires a real OwnerResolverInterface binding; NullOwnerResolver cannot scope tenants.');
+        }
     }
 
     protected function configureSpatieWebhookClient(): void
@@ -164,8 +183,9 @@ class JntServiceProvider extends PackageServiceProvider
      */
     protected function registerServices(): void
     {
-        // Register main J&T Express service
-        $this->app->singleton(JntExpressService::class, function (Application $app): JntExpressService {
+        // Credential-bearing services resolve fresh on every make() so Octane
+        // workers and per-owner credential switching never reuse stale config.
+        $this->app->bind(JntExpressService::class, function (Application $app): JntExpressService {
             $config = $app['config']['jnt'];
 
             return new JntExpressService(
@@ -179,7 +199,7 @@ class JntServiceProvider extends PackageServiceProvider
         $this->app->alias(JntExpressService::class, 'jnt-express');
 
         // Register webhook service
-        $this->app->singleton(WebhookService::class, fn (Application $app): WebhookService => new WebhookService(
+        $this->app->bind(WebhookService::class, fn (Application $app): WebhookService => new WebhookService(
             privateKey: $app['config']['jnt']['private_key'] ?? null,
         ));
 
@@ -197,7 +217,7 @@ class JntServiceProvider extends PackageServiceProvider
         });
 
         // Register tracking service
-        $this->app->singleton(JntTrackingService::class, fn (Application $app): JntTrackingService => new JntTrackingService(
+        $this->app->bind(JntTrackingService::class, fn (Application $app): JntTrackingService => new JntTrackingService(
             expressService: $app->make(JntExpressService::class),
             statusMapper: $app->make(JntStatusMapper::class),
         ));
@@ -218,7 +238,7 @@ class JntServiceProvider extends PackageServiceProvider
         }
 
         if (class_exists(ShippingManager::class)) {
-            $this->app->singleton(
+            $this->app->bind(
                 JntShippingDriver::class,
                 fn (Application $app): JntShippingDriver => new JntShippingDriver(
                     $app->make(JntExpressService::class),

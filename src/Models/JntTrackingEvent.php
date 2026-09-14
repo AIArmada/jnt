@@ -10,6 +10,7 @@ use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use AIArmada\Jnt\Enums\ScanTypeCode;
 use AIArmada\Jnt\Enums\TrackingStatus;
 use AIArmada\Jnt\Services\JntStatusMapper;
+use AIArmada\Jnt\Support\InheritedOwnerGuard;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -102,6 +103,8 @@ final class JntTrackingEvent extends Model
 
             $event->owner_type = $order->owner_type;
             $event->owner_id = $order->owner_id;
+
+            InheritedOwnerGuard::assertMatchesContext($event->owner_type, $event->owner_id, JntTrackingEvent::class);
         });
     }
 
@@ -198,19 +201,40 @@ final class JntTrackingEvent extends Model
         return $this->problem_type !== null;
     }
 
+    private ?TrackingStatus $normalizedStatusMemo = null;
+
+    private ?string $normalizedStatusMemoKey = null;
+
     /**
-     * Get the normalized tracking status.
+     * Get the normalized tracking status (memoized per instance so repeated
+     * icon/color/label resolutions in tables cost one mapping).
      */
     public function getNormalizedStatus(): TrackingStatus
     {
-        if ($this->scan_type_code === null && $this->description === null && $this->scan_type_name === null && $this->scan_type === null) {
-            return TrackingStatus::Pending;
+        $key = implode("\0", [
+            (string) $this->scan_type_code,
+            (string) $this->description,
+            (string) $this->scan_type_name,
+            (string) $this->scan_type,
+        ]);
+
+        if ($this->normalizedStatusMemo !== null && $this->normalizedStatusMemoKey === $key) {
+            return $this->normalizedStatusMemo;
         }
 
-        return app(JntStatusMapper::class)->resolve(
-            scanTypeCode: $this->scan_type_code,
-            statusDescription: $this->description ?? $this->scan_type_name ?? $this->scan_type,
-        );
+        if ($this->scan_type_code === null && $this->description === null && $this->scan_type_name === null && $this->scan_type === null) {
+            $status = TrackingStatus::Pending;
+        } else {
+            $status = app(JntStatusMapper::class)->resolve(
+                scanTypeCode: $this->scan_type_code,
+                statusDescription: $this->description ?? $this->scan_type_name ?? $this->scan_type,
+            );
+        }
+
+        $this->normalizedStatusMemo = $status;
+        $this->normalizedStatusMemoKey = $key;
+
+        return $status;
     }
 
     /**

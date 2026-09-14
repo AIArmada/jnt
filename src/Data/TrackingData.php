@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace AIArmada\Jnt\Data;
 
+use AIArmada\Jnt\Exceptions\JntValidationException;
 use Carbon\CarbonImmutable;
 use Spatie\LaravelData\Attributes\DataCollectionOf;
 use Spatie\LaravelData\Data;
 use Spatie\LaravelData\DataCollection;
+use Throwable;
 
 /**
  * Tracking data from JNT Express API.
@@ -45,9 +47,25 @@ class TrackingData extends Data
      */
     public static function fromApiArray(array $data): self
     {
+        if (! isset($data['billCode']) || ! is_string($data['billCode']) || $data['billCode'] === '') {
+            throw JntValidationException::requiredFieldMissing('billCode');
+        }
+
+        $rawDetails = $data['details'] ?? [];
+
+        if (! is_array($rawDetails)) {
+            throw JntValidationException::invalidFieldValue('details', $rawDetails, 'array');
+        }
+
         $details = array_map(
-            fn (array $detail): TrackingDetailData => TrackingDetailData::fromApiArray($detail),
-            $data['details'] ?? []
+            static function (mixed $detail): TrackingDetailData {
+                if (! is_array($detail)) {
+                    throw JntValidationException::invalidFieldValue('details.*', $detail, 'array');
+                }
+
+                return TrackingDetailData::fromApiArray($detail);
+            },
+            array_is_list($rawDetails) ? $rawDetails : [$rawDetails],
         );
 
         return self::make(
@@ -80,7 +98,13 @@ class TrackingData extends Data
         /** @var TrackingDetailData|null $latestDetail */
         $latestDetail = $this->details
             ->toCollection()
-            ->sortByDesc(fn (TrackingDetailData $detail): int => CarbonImmutable::parse($detail->scanTime)->getTimestamp())
+            ->sortByDesc(static function (TrackingDetailData $detail): int {
+                try {
+                    return CarbonImmutable::parse($detail->scanTime)->getTimestamp();
+                } catch (Throwable) {
+                    return 0;
+                }
+            })
             ->first();
 
         return $latestDetail;

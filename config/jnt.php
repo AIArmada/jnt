@@ -9,6 +9,7 @@ $tables = [
     'order_items' => env('JNT_ORDER_ITEMS_TABLE', $tablePrefix . 'order_items'),
     'order_parcels' => env('JNT_ORDER_PARCELS_TABLE', $tablePrefix . 'order_parcels'),
     'tracking_events' => env('JNT_TRACKING_EVENTS_TABLE', $tablePrefix . 'tracking_events'),
+    'webhook_calls' => env('JNT_WEBHOOK_CALLS_TABLE', 'webhook_calls'),
 ];
 
 return [
@@ -47,6 +48,8 @@ return [
     | When enabled, orders are automatically scoped to the current owner.
     */
     'owner' => [
+        // Multi-tenant deployments must set JNT_OWNER_ENABLED=true; when
+        // disabled all reads and writes are global by design (single tenant).
         'enabled' => env('JNT_OWNER_ENABLED', false),
         'include_global' => env('JNT_OWNER_INCLUDE_GLOBAL', false),
         'auto_assign_on_create' => env('JNT_OWNER_AUTO_ASSIGN', true),
@@ -60,6 +63,10 @@ return [
         'enabled' => env('JNT_NOTIFICATIONS_ENABLED', true),
         'queue' => env('JNT_NOTIFICATIONS_QUEUE', true),
         'support_contact' => env('JNT_SUPPORT_CONTACT'),
+    ],
+
+    'batch' => [
+        'concurrency_chunk_size' => env('JNT_BATCH_CONCURRENCY_CHUNK_SIZE', 25),
     ],
 
     'shipping' => [
@@ -126,6 +133,8 @@ return [
         'verify_signature' => env('JNT_WEBHOOKS_VERIFY_SIGNATURE', true),
         'retry_times' => env('JNT_WEBHOOK_RETRY_TIMES', 3),
         'retry_backoff_seconds' => env('JNT_WEBHOOK_RETRY_BACKOFF_SECONDS', 60),
+        'max_biz_content_bytes' => env('JNT_WEBHOOK_MAX_BIZ_CONTENT_BYTES', 1048576),
+        'max_details' => env('JNT_WEBHOOK_MAX_DETAILS', 500),
     ],
 
     /*

@@ -11,11 +11,14 @@ use AIArmada\Jnt\Enums\TrackingStatus;
 use AIArmada\Jnt\Events\JntOrderStatusChanged;
 use AIArmada\Jnt\Models\JntOrder;
 use AIArmada\Jnt\Models\JntTrackingEvent;
+use AIArmada\Jnt\Support\TrackingEventHash;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Throwable;
 
 class JntTrackingService
@@ -78,11 +81,17 @@ class JntTrackingService
         $events = [];
 
         foreach ($trackingData->details->toCollection() as $detail) {
+            $occurredAt = $this->parseDetailScanTime($detail);
+
+            if ($occurredAt === null) {
+                continue;
+            }
+
             $events[] = [
                 'status' => $this->getNormalizedStatus($detail),
                 'description' => $detail->description,
                 'location' => $this->formatLocation($detail),
-                'occurred_at' => CarbonImmutable::parse($detail->scanTime),
+                'occurred_at' => $occurredAt,
                 'raw' => $detail,
             ];
         }
@@ -111,62 +120,7 @@ class JntTrackingService
 
             $trackingData = $this->expressService->trackParcel(trackingNumber: $trackingNumber);
 
-            // Store new events
-            foreach ($trackingData->details->toCollection() as $detail) {
-                $scanTime = CarbonImmutable::parse($detail->scanTime);
-
-                $ownerType = $order->owner_type;
-                $ownerId = $order->owner_id;
-
-                JntTrackingEvent::firstOrCreate(
-                    [
-                        'order_id' => $order->id,
-                        'tracking_number' => $trackingNumber,
-                        'scan_type_code' => $detail->scanTypeCode,
-                        'scan_time' => $scanTime,
-                        'owner_type' => $ownerType,
-                        'owner_id' => $ownerId,
-                    ],
-                    [
-                        'order_reference' => $order->order_id,
-                        'scan_type_name' => $detail->scanTypeName,
-                        'scan_type' => $detail->scanType,
-                        'description' => $detail->description,
-                        'scan_network_type_name' => $detail->scanNetworkTypeName,
-                        'scan_network_name' => $detail->scanNetworkName,
-                        'scan_network_contact' => $detail->scanNetworkContact,
-                        'scan_network_province' => $detail->scanNetworkProvince,
-                        'scan_network_city' => $detail->scanNetworkCity,
-                        'scan_network_area' => $detail->scanNetworkArea,
-                        'scan_network_country' => $detail->scanNetworkCountry,
-                        'post_code' => $detail->postCode,
-                        'next_stop_name' => $detail->nextStopName,
-                        'next_network_province_name' => $detail->nextNetworkProvinceName,
-                        'next_network_city_name' => $detail->nextNetworkCityName,
-                        'next_network_area_name' => $detail->nextNetworkAreaName,
-                        'remark' => $detail->remark,
-                        'problem_type' => $detail->problemType,
-                        'payment_status' => $detail->paymentStatus,
-                        'payment_method' => $detail->paymentMethod,
-                        'actual_weight' => $detail->actualWeight,
-                        'longitude' => $detail->longitude,
-                        'latitude' => $detail->latitude,
-                        'time_zone' => $detail->timeZone,
-                        'scan_network_id' => $detail->scanNetworkId,
-                        'staff_name' => $detail->staffName,
-                        'staff_contact' => $detail->staffContact,
-                        'otp' => $detail->otp,
-                        'second_level_type_code' => $detail->secondLevelTypeCode,
-                        'wc_trace_flag' => $detail->wcTraceFlag,
-                        'signature_picture_url' => $detail->signaturePictureUrl,
-                        'sign_url' => $detail->signUrl,
-                        'electronic_signature_pic_url' => $detail->electronicSignaturePicUrl,
-                        'payload' => $detail->toApiArray(),
-                        'owner_type' => $ownerType,
-                        'owner_id' => $ownerId,
-                    ]
-                );
-            }
+            $this->insertMissingSyncEvents($order, $trackingNumber, $trackingData);
 
             // Update order status
             $currentStatus = $this->getCurrentStatus($trackingData);
@@ -205,7 +159,11 @@ class JntTrackingService
 
                 // Mark as delivered if appropriate
                 if ($currentStatus === TrackingStatus::Delivered && $order->delivered_at === null) {
-                    $order->delivered_at = CarbonImmutable::parse($latestDetail->scanTime);
+                    $deliveredAt = $this->parseDetailScanTime($latestDetail);
+
+                    if ($deliveredAt !== null) {
+                        $order->delivered_at = $deliveredAt;
+                    }
                 }
             }
 
@@ -304,6 +262,107 @@ class JntTrackingService
             ->orderBy('last_tracked_at', 'asc')
             ->limit($limit)
             ->get();
+    }
+
+    private function insertMissingSyncEvents(JntOrder $order, string $trackingNumber, TrackingData $trackingData): void
+    {
+        $rows = [];
+
+        foreach ($trackingData->details->toCollection() as $detail) {
+            $scanTime = $this->parseDetailScanTime($detail);
+
+            if ($scanTime === null) {
+                continue;
+            }
+
+            $rows[] = [
+                'id' => (string) Str::orderedUuid(),
+                'event_hash' => TrackingEventHash::forIdentity(
+                    orderId: (string) $order->id,
+                    trackingNumber: $trackingNumber,
+                    scanTypeCode: $detail->scanTypeCode,
+                    scanTime: $scanTime,
+                    description: $detail->description,
+                    ownerType: $order->owner_type,
+                    ownerId: $order->owner_id,
+                ),
+                'order_id' => $order->id,
+                'tracking_number' => $trackingNumber,
+                'scan_type_code' => $detail->scanTypeCode,
+                'scan_time' => $scanTime->format('Y-m-d H:i:s'),
+                'order_reference' => $order->order_id,
+                'scan_type_name' => $detail->scanTypeName,
+                'scan_type' => $detail->scanType,
+                'description' => $detail->description,
+                'scan_network_type_name' => $detail->scanNetworkTypeName,
+                'scan_network_name' => $detail->scanNetworkName,
+                'scan_network_contact' => $detail->scanNetworkContact,
+                'scan_network_province' => $detail->scanNetworkProvince,
+                'scan_network_city' => $detail->scanNetworkCity,
+                'scan_network_area' => $detail->scanNetworkArea,
+                'scan_network_country' => $detail->scanNetworkCountry,
+                'post_code' => $detail->postCode,
+                'next_stop_name' => $detail->nextStopName,
+                'next_network_province_name' => $detail->nextNetworkProvinceName,
+                'next_network_city_name' => $detail->nextNetworkCityName,
+                'next_network_area_name' => $detail->nextNetworkAreaName,
+                'remark' => $detail->remark,
+                'problem_type' => $detail->problemType,
+                'payment_status' => $detail->paymentStatus,
+                'payment_method' => $detail->paymentMethod,
+                'actual_weight' => $detail->actualWeight,
+                'longitude' => $detail->longitude,
+                'latitude' => $detail->latitude,
+                'time_zone' => $detail->timeZone,
+                'scan_network_id' => $detail->scanNetworkId,
+                'staff_name' => $detail->staffName,
+                'staff_contact' => $detail->staffContact,
+                'otp' => $detail->otp,
+                'second_level_type_code' => $detail->secondLevelTypeCode,
+                'wc_trace_flag' => $detail->wcTraceFlag,
+                'signature_picture_url' => $detail->signaturePictureUrl,
+                'sign_url' => $detail->signUrl,
+                'electronic_signature_pic_url' => $detail->electronicSignaturePicUrl,
+                'payload' => json_encode($detail->toApiArray(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                'owner_type' => $order->owner_type,
+                'owner_id' => $order->owner_id,
+                'created_at' => CarbonImmutable::now()->format('Y-m-d H:i:s'),
+                'updated_at' => CarbonImmutable::now()->format('Y-m-d H:i:s'),
+            ];
+        }
+
+        if ($rows === []) {
+            return;
+        }
+
+        $existing = JntTrackingEvent::query()
+            ->withoutOwnerScope()
+            ->whereIn('event_hash', array_column($rows, 'event_hash'))
+            ->pluck('event_hash')
+            ->all();
+
+        $missing = array_values(array_filter(
+            $rows,
+            static fn (array $row): bool => ! in_array($row['event_hash'], $existing, true),
+        ));
+
+        foreach (array_chunk($missing, 500) as $chunk) {
+            JntTrackingEvent::query()->withoutOwnerScope()->insertOrIgnore($chunk);
+        }
+    }
+
+    private function parseDetailScanTime(TrackingDetailData $detail): ?CarbonImmutable
+    {
+        try {
+            return CarbonImmutable::parse($detail->scanTime);
+        } catch (Throwable) {
+            Log::channel(config('jnt.logging.channel', 'stack'))
+                ->warning('J&T tracking ignoring unparseable scanTime', [
+                    'scan_type_code' => $detail->scanTypeCode,
+                ]);
+
+            return null;
+        }
     }
 
     /**

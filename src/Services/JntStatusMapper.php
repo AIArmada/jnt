@@ -138,11 +138,11 @@ class JntStatusMapper implements StatusMapperInterface, StatusMappingStrategyInt
             str_contains($normalized, 'SIGNED'),
             str_contains($normalized, 'RECEIVED BY') => TrackingStatus::Delivered,
 
-            str_contains($normalized, 'RETURN'),
-            str_contains($normalized, 'RETURNING') => TrackingStatus::ReturnInitiated,
-
             str_contains($normalized, 'RETURNED'),
             str_contains($normalized, 'RETURN COMPLETED') => TrackingStatus::Returned,
+
+            str_contains($normalized, 'RETURN'),
+            str_contains($normalized, 'RETURNING') => TrackingStatus::ReturnInitiated,
 
             str_contains($normalized, 'EXCEPTION'),
             str_contains($normalized, 'PROBLEM'),

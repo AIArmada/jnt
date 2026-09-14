@@ -8,12 +8,16 @@ use AIArmada\CommerceSupport\Concerns\HasCommerceAudit;
 use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
+use AIArmada\Jnt\Enums\TrackingStatus;
+use AIArmada\Jnt\Services\JntStatusMapper;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\DB;
 use OwenIt\Auditing\Contracts\Auditable;
 
 /**
@@ -210,11 +214,56 @@ final class JntOrder extends Model implements Auditable
     }
 
     /**
+     * Latest tracking event relation (eager-loadable, no per-order query).
+     *
+     * @return HasOne<JntTrackingEvent, $this>
+     */
+    public function latestTrackingEventRelation(): HasOne
+    {
+        return $this->hasOne(JntTrackingEvent::class, 'order_id')->latestOfMany('scan_time');
+    }
+
+    /**
      * Get the latest tracking event.
      */
     public function latestTrackingEvent(): ?JntTrackingEvent
     {
-        return $this->trackingEvents()->latest('scan_time')->first();
+        if ($this->relationLoaded('latestTrackingEventRelation')) {
+            return $this->getRelation('latestTrackingEventRelation');
+        }
+
+        return $this->latestTrackingEventRelation()->first();
+    }
+
+    private ?TrackingStatus $normalizedStatusMemo = null;
+
+    private ?string $normalizedStatusMemoKey = null;
+
+    /**
+     * Get the normalized tracking status (memoized per instance so repeated
+     * icon/color/label resolutions in tables cost one mapping).
+     */
+    public function getNormalizedStatus(): TrackingStatus
+    {
+        $key = implode("\0", [(string) $this->last_status_code, (string) $this->last_status]);
+
+        if ($this->normalizedStatusMemo !== null && $this->normalizedStatusMemoKey === $key) {
+            return $this->normalizedStatusMemo;
+        }
+
+        if ($this->last_status_code === null && $this->last_status === null) {
+            $status = TrackingStatus::Pending;
+        } else {
+            $status = app(JntStatusMapper::class)->resolve(
+                scanTypeCode: $this->last_status_code,
+                statusDescription: $this->last_status,
+            );
+        }
+
+        $this->normalizedStatusMemo = $status;
+        $this->normalizedStatusMemoKey = $key;
+
+        return $status;
     }
 
     /**
@@ -223,11 +272,12 @@ final class JntOrder extends Model implements Auditable
     protected static function booted(): void
     {
         self::deleting(function (JntOrder $order): void {
-            // Application-level cascade delete
-            $order->items()->delete();
-            $order->parcels()->delete();
-            $order->trackingEvents()->delete();
-            $order->webhookLogs()->update(['order_id' => null]);
+            DB::transaction(static function () use ($order): void {
+                $order->items()->delete();
+                $order->parcels()->delete();
+                $order->trackingEvents()->delete();
+                $order->webhookLogs()->update(['order_id' => null]);
+            });
         });
     }
 

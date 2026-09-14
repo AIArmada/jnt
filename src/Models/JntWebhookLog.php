@@ -124,7 +124,9 @@ final class JntWebhookLog extends Model
 
     public function getTable(): string
     {
-        return 'webhook_calls';
+        $tables = config('jnt.database.tables', []);
+
+        return $tables['webhook_calls'] ?? 'webhook_calls';
     }
 
     /**

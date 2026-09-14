@@ -8,6 +8,7 @@ use AIArmada\CommerceSupport\Concerns\HasCommerceAudit;
 use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
+use AIArmada\Jnt\Support\InheritedOwnerGuard;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -67,6 +68,8 @@ final class JntOrderParcel extends Model implements Auditable
 
             $parcel->owner_type = $order->owner_type;
             $parcel->owner_id = $order->owner_id;
+
+            InheritedOwnerGuard::assertMatchesContext($parcel->owner_type, $parcel->owner_id, JntOrderParcel::class);
         });
     }
 

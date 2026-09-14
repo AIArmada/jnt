@@ -35,21 +35,37 @@ final class AwbController
             abort(403, 'Unauthorized AWB access.');
         }
 
-        $mimeType = match ($data['format'] ?? 'pdf') {
-            'pdf' => 'application/pdf',
+        $format = in_array($data['format'] ?? 'pdf', ['pdf', 'png', 'zpl'], true)
+            ? (string) $data['format']
+            : 'pdf';
+
+        $mimeType = match ($format) {
             'png' => 'image/png',
             'zpl' => 'application/octet-stream',
             default => 'application/pdf',
         };
 
-        $filename = "jnt_awb_{$orderId}." . ($data['format'] ?? 'pdf');
+        $filename = self::safeFilename($orderId, $format);
 
         return new Response($data['content'], 200, [
             'Content-Type' => $mimeType,
-            'Content-Disposition' => "inline; filename=\"{$filename}\"",
+            'Content-Disposition' => 'inline; filename="' . $filename . '"; filename*=UTF-8\'\'' . rawurlencode($filename),
             'Cache-Control' => 'no-cache, no-store, must-revalidate',
             'Pragma' => 'no-cache',
             'Expires' => '0',
         ]);
+    }
+
+    public static function safeFilename(string $orderId, string $format): string
+    {
+        $base = preg_replace('/[^A-Za-z0-9._-]+/', '_', $orderId) ?? '';
+
+        $base = mb_trim($base, '._');
+
+        if ($base === '') {
+            $base = 'waybill';
+        }
+
+        return 'jnt_awb_' . mb_substr($base, 0, 100) . '.' . $format;
     }
 }

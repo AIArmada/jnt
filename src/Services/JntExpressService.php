@@ -82,7 +82,13 @@ class JntExpressService
     }
 
     /**
-     * Option 3: Array passthrough (quick prototyping, less type safety)
+     * Option 3: Array passthrough (unsafe-advanced, intentionally unvalidated).
+     *
+     * The payload is posted to the carrier verbatim with no local validation;
+     * malformed input fails at the carrier with a JntApiException instead of a
+     * local JntValidationException. Prefer createOrder() or createOrderBuilder()
+     * for validated input. Callers passing user-supplied arrays must validate
+     * them first.
      *
      * @param  array<string, mixed>  $orderData
      */
@@ -266,7 +272,7 @@ class JntExpressService
                 $owner,
                 $this->trackingCacheKey($identifier),
                 $cached,
-                $debounceMinutes * 60,
+                $debounceMinutes * 60 + random_int(0, 60),
             );
         }
     }
@@ -387,33 +393,34 @@ class JntExpressService
         $failed = [];
 
         // Build concurrent tasks - pass primitives only to avoid serialization issues
-        // Each closure will resolve a fresh service instance in its child process
+        // Each closure will resolve a fresh service instance in its child process.
+        // Tasks use list keys so duplicate identifiers are preserved, not collapsed.
         $tasks = [];
 
         // Tasks for order IDs
-        foreach ($orderIds as $orderId) {
-            $tasks["order:{$orderId}"] = static fn (): array => self::executeTrackingTask(
+        foreach (array_values($orderIds) as $index => $orderId) {
+            $tasks["order:{$index}:{$orderId}"] = static fn (): array => self::executeTrackingTask(
                 orderId: $orderId,
                 trackingNumber: null,
             );
         }
 
         // Tasks for tracking numbers
-        foreach ($trackingNumbers as $trackingNumber) {
-            $tasks["tracking:{$trackingNumber}"] = static fn (): array => self::executeTrackingTask(
+        foreach (array_values($trackingNumbers) as $index => $trackingNumber) {
+            $tasks["tracking:{$index}:{$trackingNumber}"] = static fn (): array => self::executeTrackingTask(
                 orderId: null,
                 trackingNumber: $trackingNumber,
             );
         }
 
         // If no tasks, return early
-        if (empty($tasks)) {
+        if ($tasks === []) {
             return ['successful' => [], 'failed' => []];
         }
 
-        // Execute all tracking requests in parallel
-        /** @var array<string, array{success: bool, data?: TrackingData, error?: string, identifier: string, type: string}> $results */
-        $results = Concurrency::run($tasks);
+        // Execute tracking requests in bounded parallel chunks
+        /** @var list<array{success: bool, data?: TrackingData, error?: string, identifier: string, type: string}> $results */
+        $results = $this->runTasksInChunks($tasks);
 
         // Process results
         foreach ($results as $result) {
@@ -518,15 +525,16 @@ class JntExpressService
             return ['successful' => [], 'failed' => []];
         }
 
-        // Build concurrent tasks - pass primitives only
+        // Build concurrent tasks - pass primitives only. Tasks use list keys
+        // so duplicate order IDs are preserved, not collapsed.
         $tasks = [];
-        foreach ($orderIds as $orderId) {
-            $tasks[$orderId] = static fn (): array => self::executePrintTask($orderId, $templateName);
+        foreach (array_values($orderIds) as $index => $orderId) {
+            $tasks["print:{$index}:{$orderId}"] = static fn (): array => self::executePrintTask($orderId, $templateName);
         }
 
-        // Execute all print requests in parallel
-        /** @var array<string, array{success: bool, orderId: string, data?: array<string, mixed>, error?: string}> $results */
-        $results = Concurrency::run($tasks);
+        // Execute print requests in bounded parallel chunks
+        /** @var list<array{success: bool, orderId: string, data?: array<string, mixed>, error?: string}> $results */
+        $results = $this->runTasksInChunks($tasks);
 
         $successful = [];
         $failed = [];
@@ -600,6 +608,30 @@ class JntExpressService
         }
 
         return $this->password;
+    }
+
+    /**
+     * Run concurrency tasks in bounded chunks so huge batches cannot exhaust
+     * processes or connections.
+     *
+     * @param  array<string, callable>  $tasks
+     * @return list<mixed>
+     */
+    private function runTasksInChunks(array $tasks): array
+    {
+        $chunkSize = max(1, (int) config('jnt.batch.concurrency_chunk_size', 25));
+        $results = [];
+
+        foreach (array_chunk($tasks, $chunkSize, true) as $chunk) {
+            /** @var array<string, mixed> $chunkResults */
+            $chunkResults = Concurrency::run($chunk);
+
+            foreach ($chunkResults as $result) {
+                $results[] = $result;
+            }
+        }
+
+        return $results;
     }
 
     /**

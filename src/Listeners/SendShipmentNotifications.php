@@ -13,12 +13,17 @@ use AIArmada\Jnt\Models\JntOrder;
 use AIArmada\Jnt\Notifications\OrderDeliveredNotification;
 use AIArmada\Jnt\Notifications\OrderProblemNotification;
 use AIArmada\Jnt\Notifications\OrderShippedNotification;
+use AIArmada\Jnt\Notifications\ShipmentEmailRecipient;
 use AIArmada\Jnt\Services\JntTrackingService;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Spatie\LaravelData\DataCollection;
 use Throwable;
+use TypeError;
+use ValueError;
 
 /**
  * Listener that sends notifications when JNT order status changes.
@@ -62,7 +67,19 @@ class SendShipmentNotifications implements ShouldQueue
             $notification = $this->createNotification($event, $order);
 
             if ($notification !== null) {
-                Notification::send($notifiable, $notification);
+                try {
+                    Notification::send($notifiable, $notification);
+                } catch (Throwable $e) {
+                    if (! $e instanceof TypeError && ! $e instanceof ValueError) {
+                        throw $e;
+                    }
+
+                    Log::channel(config('jnt.logging.channel', 'stack'))
+                        ->warning('J&T shipment notification skipped: unusable notifiable', [
+                            'order_id' => $order->order_id,
+                            'error' => $e->getMessage(),
+                        ]);
+                }
             }
         });
     }
@@ -84,27 +101,29 @@ class SendShipmentNotifications implements ShouldQueue
         $owner = $order->owner()->getResults();
 
         if ($owner !== null) {
+            if (! in_array(Notifiable::class, class_uses_recursive($owner), true)
+                && ! method_exists($owner, 'routeNotificationForMail')) {
+                Log::channel(config('jnt.logging.channel', 'stack'))
+                    ->warning('J&T shipment notification skipped: owner is not notifiable', [
+                        'order_id' => $order->order_id,
+                        'owner_type' => $order->owner_type,
+                    ]);
+
+                return null;
+            }
+
             return $owner;
         }
 
         // Try to get notifiable from metadata
         $metadata = $order->metadata ?? [];
-        if (isset($metadata['notification_email'])) {
-            return new class($metadata['notification_email'])
-            {
-                public function __construct(public readonly string $email) {}
+        $email = $metadata['notification_email'] ?? null;
 
-                /**
-                 * @return array{mail: string}
-                 */
-                public function routeNotificationForMail(): array
-                {
-                    return ['mail' => $this->email];
-                }
-            };
+        if (! is_string($email) || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+            return null;
         }
 
-        return null;
+        return new ShipmentEmailRecipient($email);
     }
 
     /**

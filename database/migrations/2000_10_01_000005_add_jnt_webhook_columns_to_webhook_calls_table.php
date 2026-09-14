@@ -15,38 +15,42 @@ return new class extends Migration
             return;
         }
 
-        $this->createSharedWebhookCallsTableIfMissing();
+        $table = (string) config('jnt.database.tables.webhook_calls', 'webhook_calls');
 
-        if (! Schema::hasTable('webhook_calls')) {
+        $this->createSharedWebhookCallsTableIfMissing($table);
+
+        if (! Schema::hasTable($table)) {
             return;
         }
 
-        $hasOwnerType = Schema::hasColumn('webhook_calls', 'owner_type');
-        $hasOwnerId = Schema::hasColumn('webhook_calls', 'owner_id');
-        $hasOwnerIndex = Schema::hasIndex('webhook_calls', 'webhook_calls_owner_type_owner_id_index');
+        $hasOwnerType = Schema::hasColumn($table, 'owner_type');
+        $hasOwnerId = Schema::hasColumn($table, 'owner_id');
+        $hasOwnerIndex = Schema::hasIndex($table, 'webhook_calls_owner_type_owner_id_index');
 
-        Schema::table('webhook_calls', function (Blueprint $table) use ($hasOwnerType, $hasOwnerId, $hasOwnerIndex): void {
-            if (! Schema::hasColumn('webhook_calls', 'order_id')) {
+        Schema::table($table, function (Blueprint $table) use ($hasOwnerType, $hasOwnerId, $hasOwnerIndex): void {
+            $tableName = $table->getTable();
+
+            if (! Schema::hasColumn($tableName, 'order_id')) {
                 $table->foreignUuid('order_id')->nullable()->index();
             }
 
-            if (! Schema::hasColumn('webhook_calls', 'tracking_number')) {
+            if (! Schema::hasColumn($tableName, 'tracking_number')) {
                 $table->string('tracking_number', 30)->nullable()->index();
             }
 
-            if (! Schema::hasColumn('webhook_calls', 'order_reference')) {
+            if (! Schema::hasColumn($tableName, 'order_reference')) {
                 $table->string('order_reference', 50)->nullable()->index();
             }
 
-            if (! Schema::hasColumn('webhook_calls', 'digest')) {
+            if (! Schema::hasColumn($tableName, 'digest')) {
                 $table->string('digest', 255)->nullable();
             }
 
-            if (! Schema::hasColumn('webhook_calls', 'processing_status')) {
+            if (! Schema::hasColumn($tableName, 'processing_status')) {
                 $table->string('processing_status', 32)->default('pending')->index();
             }
 
-            if (! Schema::hasColumn('webhook_calls', 'processing_error')) {
+            if (! Schema::hasColumn($tableName, 'processing_error')) {
                 $table->text('processing_error')->nullable();
             }
 
@@ -80,9 +84,13 @@ return new class extends Migration
         }
     }
 
-    private function createSharedWebhookCallsTableIfMissing(): void
+    private function createSharedWebhookCallsTableIfMissing(string $table): void
     {
-        if (Schema::hasTable('webhook_calls')) {
+        if (Schema::hasTable($table)) {
+            return;
+        }
+
+        if ($table !== 'webhook_calls') {
             return;
         }
 

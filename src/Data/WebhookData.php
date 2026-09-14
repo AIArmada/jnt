@@ -61,8 +61,15 @@ class WebhookData extends Data
             'bizContent' => ['required', 'string'],
         ]);
 
+        $rawBizContent = (string) $validated['bizContent'];
+        $maxBytes = max(1, (int) config('jnt.webhooks.max_biz_content_bytes', 1048576));
+
+        if (mb_strlen($rawBizContent) > $maxBytes) {
+            throw JntValidationException::fieldTooLong('bizContent', $maxBytes, mb_strlen($rawBizContent));
+        }
+
         // Parse bizContent JSON
-        $bizContent = json_decode((string) $validated['bizContent'], true);
+        $bizContent = json_decode($rawBizContent, true);
 
         if (! is_array($bizContent)) {
             throw JntValidationException::invalidFormat('bizContent', 'valid JSON', $validated['bizContent']);
@@ -74,12 +81,24 @@ class WebhookData extends Data
         }
 
         if (! isset($bizContent['details']) || ! is_array($bizContent['details'])) {
-            throw JntValidationException::invalidFieldValue('details', 'array', gettype($bizContent['details'] ?? null));
+            throw JntValidationException::invalidFieldValue('details', $bizContent['details'] ?? null, 'array');
+        }
+
+        $maxDetails = max(1, (int) config('jnt.webhooks.max_details', 500));
+
+        if (count($bizContent['details']) > $maxDetails) {
+            throw JntValidationException::fieldTooLong('details', $maxDetails, count($bizContent['details']));
         }
 
         // Parse tracking details
         $details = array_map(
-            fn (array $detail): TrackingDetailData => TrackingDetailData::fromApiArray($detail),
+            static function (mixed $detail): TrackingDetailData {
+                if (! is_array($detail)) {
+                    throw JntValidationException::invalidFieldValue('details.*', $detail, 'array');
+                }
+
+                return TrackingDetailData::fromApiArray($detail);
+            },
             $bizContent['details']
         );
 

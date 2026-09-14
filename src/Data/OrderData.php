@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\Jnt\Data;
 
+use AIArmada\Jnt\Exceptions\JntValidationException;
 use Spatie\LaravelData\Attributes\MapInputName;
 use Spatie\LaravelData\Attributes\MapOutputName;
 use Spatie\LaravelData\Data;
@@ -35,6 +36,10 @@ class OrderData extends Data
      */
     public static function fromApiArray(array $data): self
     {
+        if (! isset($data['txlogisticId']) || ! is_string($data['txlogisticId']) || $data['txlogisticId'] === '') {
+            throw JntValidationException::requiredFieldMissing('txlogisticId');
+        }
+
         return new self(
             orderId: $data['txlogisticId'],
             trackingNumber: $data['billCode'] ?? null,

@@ -53,6 +53,15 @@ protected $listen = [
 
 `TrackingUpdatedEvent` exposes `getTrackingNumber()`, `getOrderId()`, `getLatestStatus()`, `getLatestDescription()`, `getLatestLocation()`, and typed tracking details through `getDetails()`.
 
+## Payload guards
+
+Inbound payloads are bounded before processing: `webhooks.max_biz_content_bytes`
+(default 1 MiB) caps the raw body and `webhooks.max_details` (default 500) caps
+the tracking detail array. Oversize payloads are rejected with a `422` failure
+response. Tracking events are deduplicated through the canonical `event_hash`
+identity (order, tracking number, scan code, scan time, description, owner), so
+webhook replays and API syncs never double-store the same event.
+
 ## Webhook log records
 
 `JntWebhookLog` reads only rows named `jnt.webhooks.status` from the shared table. It records the tracking number, order reference, matched order ID, digest, processing status, processing error, and processed timestamp. Its `order_id` write path validates the order against the current owner context.

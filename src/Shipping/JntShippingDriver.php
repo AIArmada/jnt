@@ -381,8 +381,12 @@ class JntShippingDriver implements ShippingDriverInterface
      */
     protected function getRegionMultiplierBasisPoints(AddressData $destination): int
     {
-        $postcode = $destination->postcode;
+        $postcode = $this->numericPostcode($destination->postcode);
         $regionMultipliers = config('jnt.shipping.region_multipliers_bp', []);
+
+        if ($postcode === null) {
+            return 10000;
+        }
 
         $eastMalaysiaRanges = [
             ['87000', '91999'], // Sabah
@@ -407,9 +411,13 @@ class JntShippingDriver implements ShippingDriverInterface
      */
     protected function getEstimatedDays(AddressData $destination): int
     {
-        $postcode = $destination->postcode;
+        $postcode = $this->numericPostcode($destination->postcode);
         $defaultDays = (int) config('jnt.shipping.default_estimated_days', 3);
         $eastExtraDays = (int) config('jnt.shipping.east_malaysia_extra_days', 2);
+
+        if ($postcode === null) {
+            return $defaultDays;
+        }
 
         // East Malaysia takes longer
         $eastMalaysiaRanges = [
@@ -424,5 +432,14 @@ class JntShippingDriver implements ShippingDriverInterface
         }
 
         return $defaultDays;
+    }
+
+    private function numericPostcode(mixed $postcode): ?string
+    {
+        if (! is_string($postcode) || ! preg_match('/^\d{5}$/', $postcode)) {
+            return null;
+        }
+
+        return $postcode;
     }
 }

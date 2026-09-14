@@ -24,6 +24,12 @@ class JntWebhookProfile extends CommerceWebhookProfile
             return false;
         }
 
+        $maxBytes = max(1, (int) config('jnt.webhooks.max_biz_content_bytes', 1048576));
+
+        if (mb_strlen($bizContent) > $maxBytes) {
+            throw JntValidationException::fieldTooLong('bizContent', $maxBytes, mb_strlen($bizContent));
+        }
+
         $decoded = json_decode($bizContent, true);
 
         if (! is_array($decoded)) {
@@ -35,7 +41,13 @@ class JntWebhookProfile extends CommerceWebhookProfile
         }
 
         if (! isset($decoded['details']) || ! is_array($decoded['details'])) {
-            throw JntValidationException::invalidFieldValue('details', 'array', gettype($decoded['details'] ?? null));
+            throw JntValidationException::invalidFieldValue('details', $decoded['details'] ?? null, 'array');
+        }
+
+        $maxDetails = max(1, (int) config('jnt.webhooks.max_details', 500));
+
+        if (count($decoded['details']) > $maxDetails) {
+            throw JntValidationException::fieldTooLong('details', $maxDetails, count($decoded['details']));
         }
 
         return true;

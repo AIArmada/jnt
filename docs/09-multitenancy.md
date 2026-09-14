@@ -37,12 +37,13 @@ Enable owner scoping in your configuration:
 // config/jnt.php
 
 'owner' => [
-    // Enable owner-based scoping
-    'enabled' => env('JNT_OWNER_ENABLED', true),
-    
+    // Enable owner-based scoping. Default is false (single tenant, global
+    // reads/writes by design). Multi-tenant deployments MUST set this true.
+    'enabled' => env('JNT_OWNER_ENABLED', false),
+
     // Include global (owner=null) records in queries
     'include_global' => env('JNT_OWNER_INCLUDE_GLOBAL', false),
-    
+
     // Auto-assign owner when creating records
     'auto_assign_on_create' => env('JNT_OWNER_AUTO_ASSIGN', true),
 ],

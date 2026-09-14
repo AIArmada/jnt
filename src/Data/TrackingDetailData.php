@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\Jnt\Data;
 
+use AIArmada\Jnt\Exceptions\JntValidationException;
 use Spatie\LaravelData\Attributes\MapInputName;
 use Spatie\LaravelData\Attributes\MapOutputName;
 use Spatie\LaravelData\Data;
@@ -61,12 +62,18 @@ class TrackingDetailData extends Data
      */
     public static function fromApiArray(array $data): self
     {
+        foreach (['scanTime', 'desc', 'scanTypeCode', 'scanTypeName', 'scanType'] as $key) {
+            if (! isset($data[$key]) || ! is_scalar($data[$key])) {
+                throw JntValidationException::requiredFieldMissing($key);
+            }
+        }
+
         return new self(
-            scanTime: $data['scanTime'],
-            description: $data['desc'],
-            scanTypeCode: $data['scanTypeCode'],
-            scanTypeName: $data['scanTypeName'],
-            scanType: $data['scanType'],
+            scanTime: (string) $data['scanTime'],
+            description: (string) $data['desc'],
+            scanTypeCode: (string) $data['scanTypeCode'],
+            scanTypeName: (string) $data['scanTypeName'],
+            scanType: (string) $data['scanType'],
             actualWeight: $data['realWeight'] ?? null,
             scanNetworkTypeName: $data['scanNetworkTypeName'] ?? null,
             scanNetworkName: $data['scanNetworkName'] ?? null,

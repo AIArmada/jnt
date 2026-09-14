@@ -184,9 +184,17 @@ class WebhookService
             throw JntValidationException::invalidFormat('bizContent', 'valid JSON array', gettype($bizContent));
         }
 
+        $items = array_is_list($bizContent) ? $bizContent : [$bizContent];
+
         return array_map(
-            fn (array $item): TrackingData => TrackingData::fromApiArray($item),
-            $bizContent
+            static function (mixed $item): TrackingData {
+                if (! is_array($item)) {
+                    throw JntValidationException::invalidFieldValue('bizContent.*', $item, 'array');
+                }
+
+                return TrackingData::fromApiArray($item);
+            },
+            $items
         );
     }
 }

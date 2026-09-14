@@ -14,10 +14,13 @@ use AIArmada\Jnt\Models\JntOrder;
 use AIArmada\Jnt\Models\JntTrackingEvent;
 use AIArmada\Jnt\Models\JntWebhookLog;
 use AIArmada\Jnt\Services\JntStatusMapper;
+use AIArmada\Jnt\Support\TrackingEventHash;
 use Carbon\CarbonImmutable;
-use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Spatie\WebhookClient\Models\WebhookCall;
+use Throwable;
 
 /**
  * Process J&T Express webhook events.
@@ -342,68 +345,150 @@ class ProcessJntWebhook extends CommerceWebhookProcessor
      */
     private function syncShipmentTrackingFromWebhook(JntOrder $shipment, string $billcode, array $biz, ?TrackingStatus $status): void
     {
+        DB::transaction(function () use ($shipment, $billcode, $biz, $status): void {
+            $locked = $this->lockShipmentForUpdate($shipment);
+
+            $this->insertMissingTrackingEvents($locked, $billcode, $this->cappedDetails($biz));
+
+            $this->applyShipmentStatusUpdates($locked, $biz, $status);
+        });
+    }
+
+    /**
+     * @param  array<string, mixed>  $biz
+     * @return list<array<string, mixed>>
+     */
+    private function cappedDetails(array $biz): array
+    {
         $details = $biz['details'] ?? null;
 
-        if (is_array($details)) {
-            foreach ($details as $detail) {
-                if (! is_array($detail)) {
-                    continue;
-                }
-
-                $scanTime = $this->parseScanTime($detail['scanTime'] ?? null);
-
-                try {
-                    JntTrackingEvent::query()->create([
-                        'event_hash' => $this->trackingEventHash($shipment, $billcode, $detail),
-                        'order_id' => $shipment->id,
-                        'tracking_number' => $billcode,
-                        'scan_type_code' => $this->nullableString($detail['scanTypeCode'] ?? null),
-                        'scan_time' => $scanTime,
-                        'order_reference' => $shipment->order_id,
-                        'scan_type_name' => $this->nullableString($detail['scanTypeName'] ?? null),
-                        'scan_type' => $this->nullableString($detail['scanType'] ?? null),
-                        'description' => $this->nullableString($detail['desc'] ?? null),
-                        'scan_network_type_name' => $this->nullableString($detail['scanNetworkTypeName'] ?? null),
-                        'scan_network_name' => $this->nullableString($detail['scanNetworkName'] ?? null),
-                        'scan_network_contact' => $this->nullableString($detail['scanNetworkContact'] ?? null),
-                        'scan_network_province' => $this->nullableString($detail['scanNetworkProvince'] ?? null),
-                        'scan_network_city' => $this->nullableString($detail['scanNetworkCity'] ?? null),
-                        'scan_network_area' => $this->nullableString($detail['scanNetworkArea'] ?? null),
-                        'scan_network_country' => $this->nullableString($detail['scanNetworkCountray'] ?? $detail['scanNetworkCountry'] ?? null),
-                        'post_code' => $this->nullableString($detail['postCode'] ?? null),
-                        'next_stop_name' => $this->nullableString($detail['nextStopName'] ?? null),
-                        'next_network_province_name' => $this->nullableString($detail['nextNetworkProvinceName'] ?? null),
-                        'next_network_city_name' => $this->nullableString($detail['nextNetworkCityName'] ?? null),
-                        'next_network_area_name' => $this->nullableString($detail['nextNetworkAreaName'] ?? null),
-                        'remark' => $this->nullableString($detail['remark'] ?? null),
-                        'problem_type' => $this->nullableString($detail['problemType'] ?? null),
-                        'payment_status' => $this->nullableString($detail['paymentStatus'] ?? null),
-                        'payment_method' => $this->nullableString($detail['paymentMethod'] ?? null),
-                        'actual_weight' => $this->nullableString($detail['realWeight'] ?? null),
-                        'longitude' => $this->nullableString($detail['longitude'] ?? null),
-                        'latitude' => $this->nullableString($detail['latitude'] ?? null),
-                        'time_zone' => $this->nullableString($detail['timeZone'] ?? null),
-                        'scan_network_id' => isset($detail['scanNetworkId']) ? (int) $detail['scanNetworkId'] : null,
-                        'staff_name' => $this->nullableString($detail['staffName'] ?? null),
-                        'staff_contact' => $this->nullableString($detail['staffContact'] ?? null),
-                        'otp' => $this->nullableString($detail['otp'] ?? null),
-                        'second_level_type_code' => $this->nullableString($detail['secondLevelTypeCode'] ?? null),
-                        'wc_trace_flag' => $this->nullableString($detail['wcTraceFlag'] ?? null),
-                        'signature_picture_url' => $this->nullableString($detail['sigPicUrl'] ?? null),
-                        'sign_url' => $this->nullableString($detail['signUrl'] ?? null),
-                        'electronic_signature_pic_url' => $this->nullableString($detail['electronicSignaturePicUrl'] ?? null),
-                        'payload' => $detail,
-                        'owner_type' => $shipment->owner_type,
-                        'owner_id' => $shipment->owner_id,
-                    ]);
-                } catch (QueryException $exception) {
-                    if (! $this->isUniqueConstraintViolation($exception)) {
-                        throw $exception;
-                    }
-                }
-            }
+        if (! is_array($details)) {
+            return [];
         }
 
+        $items = array_values(array_filter($details, is_array(...)));
+        $max = max(1, (int) config('jnt.webhooks.max_details', 500));
+
+        if (count($items) <= $max) {
+            return $items;
+        }
+
+        Log::channel(config('jnt.logging.channel', 'stack'))
+            ->warning('J&T webhook details truncated to configured maximum', [
+                'webhook_call_id' => $this->webhookCall->id ?? null,
+                'received' => count($items),
+                'kept' => $max,
+            ]);
+
+        return array_slice($items, -$max);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $details
+     */
+    private function insertMissingTrackingEvents(JntOrder $shipment, string $billcode, array $details): void
+    {
+        if ($details === []) {
+            return;
+        }
+
+        $rows = [];
+
+        foreach ($details as $detail) {
+            $scanTime = $this->parseScanTime($detail['scanTime'] ?? null);
+            $scanTypeCode = $this->nullableString($detail['scanTypeCode'] ?? null);
+            $description = $this->nullableString($detail['desc'] ?? null);
+
+            $rows[] = [
+                'id' => (string) Str::orderedUuid(),
+                'event_hash' => TrackingEventHash::forIdentity(
+                    orderId: (string) $shipment->id,
+                    trackingNumber: $billcode,
+                    scanTypeCode: $scanTypeCode,
+                    scanTime: $scanTime,
+                    description: $description,
+                    ownerType: $shipment->owner_type,
+                    ownerId: $shipment->owner_id,
+                ),
+                'order_id' => $shipment->id,
+                'tracking_number' => $billcode,
+                'scan_type_code' => $scanTypeCode,
+                'scan_time' => $scanTime?->format('Y-m-d H:i:s'),
+                'order_reference' => $shipment->order_id,
+                'scan_type_name' => $this->nullableString($detail['scanTypeName'] ?? null),
+                'scan_type' => $this->nullableString($detail['scanType'] ?? null),
+                'description' => $description,
+                'scan_network_type_name' => $this->nullableString($detail['scanNetworkTypeName'] ?? null),
+                'scan_network_name' => $this->nullableString($detail['scanNetworkName'] ?? null),
+                'scan_network_contact' => $this->nullableString($detail['scanNetworkContact'] ?? null),
+                'scan_network_province' => $this->nullableString($detail['scanNetworkProvince'] ?? null),
+                'scan_network_city' => $this->nullableString($detail['scanNetworkCity'] ?? null),
+                'scan_network_area' => $this->nullableString($detail['scanNetworkArea'] ?? null),
+                'scan_network_country' => $this->nullableString($detail['scanNetworkCountray'] ?? $detail['scanNetworkCountry'] ?? null),
+                'post_code' => $this->nullableString($detail['postCode'] ?? null),
+                'next_stop_name' => $this->nullableString($detail['nextStopName'] ?? null),
+                'next_network_province_name' => $this->nullableString($detail['nextNetworkProvinceName'] ?? null),
+                'next_network_city_name' => $this->nullableString($detail['nextNetworkCityName'] ?? null),
+                'next_network_area_name' => $this->nullableString($detail['nextNetworkAreaName'] ?? null),
+                'remark' => $this->nullableString($detail['remark'] ?? null),
+                'problem_type' => $this->nullableString($detail['problemType'] ?? null),
+                'payment_status' => $this->nullableString($detail['paymentStatus'] ?? null),
+                'payment_method' => $this->nullableString($detail['paymentMethod'] ?? null),
+                'actual_weight' => $this->nullableString($detail['realWeight'] ?? null),
+                'longitude' => $this->nullableString($detail['longitude'] ?? null),
+                'latitude' => $this->nullableString($detail['latitude'] ?? null),
+                'time_zone' => $this->nullableString($detail['timeZone'] ?? null),
+                'scan_network_id' => isset($detail['scanNetworkId']) ? (int) $detail['scanNetworkId'] : null,
+                'staff_name' => $this->nullableString($detail['staffName'] ?? null),
+                'staff_contact' => $this->nullableString($detail['staffContact'] ?? null),
+                'otp' => $this->nullableString($detail['otp'] ?? null),
+                'second_level_type_code' => $this->nullableString($detail['secondLevelTypeCode'] ?? null),
+                'wc_trace_flag' => $this->nullableString($detail['wcTraceFlag'] ?? null),
+                'signature_picture_url' => $this->nullableString($detail['sigPicUrl'] ?? null),
+                'sign_url' => $this->nullableString($detail['signUrl'] ?? null),
+                'electronic_signature_pic_url' => $this->nullableString($detail['electronicSignaturePicUrl'] ?? null),
+                'payload' => json_encode($detail, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                'owner_type' => $shipment->owner_type,
+                'owner_id' => $shipment->owner_id,
+                'created_at' => CarbonImmutable::now()->format('Y-m-d H:i:s'),
+                'updated_at' => CarbonImmutable::now()->format('Y-m-d H:i:s'),
+            ];
+        }
+
+        $hashes = array_column($rows, 'event_hash');
+
+        $existing = JntTrackingEvent::query()
+            ->withoutOwnerScope()
+            ->whereIn('event_hash', $hashes)
+            ->pluck('event_hash')
+            ->all();
+
+        $missing = array_values(array_filter(
+            $rows,
+            static fn (array $row): bool => ! in_array($row['event_hash'], $existing, true),
+        ));
+
+        foreach (array_chunk($missing, 500) as $chunk) {
+            JntTrackingEvent::query()->withoutOwnerScope()->insertOrIgnore($chunk);
+        }
+    }
+
+    private function lockShipmentForUpdate(JntOrder $shipment): JntOrder
+    {
+        $query = JntOrder::query()->withoutOwnerScope()->whereKey($shipment->id);
+
+        if (DB::connection()->getDriverName() !== 'sqlite') {
+            $query->lockForUpdate();
+        }
+
+        return $query->firstOrFail();
+    }
+
+    /**
+     * @param  array<string, mixed>  $biz
+     */
+    private function applyShipmentStatusUpdates(JntOrder $shipment, array $biz, ?TrackingStatus $status): void
+    {
         $latestDetail = $this->latestTrackingDetail($biz);
         $updates = [
             'last_tracked_at' => CarbonImmutable::now(),
@@ -474,20 +559,23 @@ class ProcessJntWebhook extends CommerceWebhookProcessor
             return null;
         }
 
-        usort($details, function (mixed $left, mixed $right): int {
-            $leftTimestamp = is_array($left)
-                ? $this->parseScanTime($left['scanTime'] ?? null)?->getTimestamp()
-                : null;
-            $rightTimestamp = is_array($right)
-                ? $this->parseScanTime($right['scanTime'] ?? null)?->getTimestamp()
-                : null;
+        $latest = null;
+        $latestTimestamp = null;
 
-            return ($rightTimestamp ?? 0) <=> ($leftTimestamp ?? 0);
-        });
+        foreach ($details as $detail) {
+            if (! is_array($detail)) {
+                continue;
+            }
 
-        $latest = $details[0] ?? null;
+            $timestamp = $this->parseScanTime($detail['scanTime'] ?? null)?->getTimestamp();
 
-        return is_array($latest) ? $latest : null;
+            if ($latest === null || ($timestamp ?? 0) >= ($latestTimestamp ?? 0)) {
+                $latest = $detail;
+                $latestTimestamp = $timestamp;
+            }
+        }
+
+        return $latest;
     }
 
     private function parseScanTime(mixed $value): ?CarbonImmutable
@@ -496,7 +584,17 @@ class ProcessJntWebhook extends CommerceWebhookProcessor
             return null;
         }
 
-        return CarbonImmutable::parse($value);
+        try {
+            return CarbonImmutable::parse($value);
+        } catch (Throwable) {
+            Log::channel(config('jnt.logging.channel', 'stack'))
+                ->warning('J&T webhook ignoring unparseable scanTime', [
+                    'webhook_call_id' => $this->webhookCall->id ?? null,
+                    'scan_time_length' => mb_strlen($value),
+                ]);
+
+            return null;
+        }
     }
 
     private function nullableString(mixed $value): ?string
@@ -508,43 +606,5 @@ class ProcessJntWebhook extends CommerceWebhookProcessor
         $string = mb_trim((string) $value);
 
         return $string === '' ? null : $string;
-    }
-
-    /**
-     * @param  array<string, mixed>  $detail
-     */
-    private function trackingEventHash(JntOrder $shipment, string $billcode, array $detail): string
-    {
-        ksort($detail);
-
-        $normalized = [
-            'order_id' => (string) $shipment->id,
-            'tracking_number' => $billcode,
-            'owner_type' => $shipment->owner_type,
-            'owner_id' => $shipment->owner_id,
-            'detail' => $detail,
-        ];
-
-        $payload = json_encode($normalized, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-
-        if (! is_string($payload)) {
-            return hash('sha256', serialize($normalized));
-        }
-
-        return hash('sha256', $payload);
-    }
-
-    private function isUniqueConstraintViolation(QueryException $exception): bool
-    {
-        $sqlState = (string) ($exception->errorInfo[0] ?? $exception->getCode());
-
-        if (in_array($sqlState, ['23000', '23505'], true)) {
-            return true;
-        }
-
-        $message = mb_strtolower($exception->getMessage());
-
-        return str_contains($message, 'duplicate')
-            || str_contains($message, 'unique constraint');
     }
 }

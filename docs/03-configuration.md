@@ -154,6 +154,21 @@ Configure webhook handling:
     // Queue retry policy for webhook processing
     'retry_times' => env('JNT_WEBHOOK_RETRY_TIMES', 3),
     'retry_backoff_seconds' => env('JNT_WEBHOOK_RETRY_BACKOFF_SECONDS', 60),
+
+    // Inbound payload guards (oversize payloads are rejected with 422)
+    'max_biz_content_bytes' => env('JNT_WEBHOOK_MAX_BIZ_CONTENT_BYTES', 1048576),
+    'max_details' => env('JNT_WEBHOOK_MAX_DETAILS', 500),
+],
+```
+
+### Batch Concurrency
+
+Parallel batch calls (`batchTrackParcels`, `batchPrintWaybills`) run in bounded
+chunks so large batches cannot exhaust processes or connections:
+
+```php
+'batch' => [
+    'concurrency_chunk_size' => env('JNT_BATCH_CONCURRENCY_CHUNK_SIZE', 25),
 ],
 ```
 
@@ -164,6 +179,9 @@ In production, always enable signature verification. To temporarily disable for 
 ```env
 JNT_WEBHOOKS_VERIFY_SIGNATURE=false
 ```
+
+Disabling verification is refused in production: signatures fail closed with an
+error log entry.
 
 ## Owner Scoping (Multi-tenancy)
 

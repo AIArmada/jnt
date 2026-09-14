@@ -6,6 +6,7 @@ namespace AIArmada\Jnt\Webhooks;
 
 use AIArmada\CommerceSupport\Webhooks\CommerceSignatureValidator;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 final class JntSpatieSignatureValidator extends CommerceSignatureValidator
 {
@@ -17,6 +18,13 @@ final class JntSpatieSignatureValidator extends CommerceSignatureValidator
     protected function validateSignature(Request $request, string $signature, string $secret): bool
     {
         if (! config('jnt.webhooks.verify_signature', true)) {
+            if (app()->environment('production')) {
+                Log::channel(config('jnt.logging.channel', 'stack'))
+                    ->error('J&T webhook signature verification cannot be disabled in production');
+
+                return false;
+            }
+
             return true;
         }
 
