@@ -77,10 +77,4 @@ return new class extends Migration
             });
         }
     }
-
-    public function down(): void
-    {
-        $tableName = config('jnt.database.tables.orders', config('jnt.database.table_prefix', 'jnt_') . 'orders');
-        Schema::dropIfExists($tableName);
-    }
 };

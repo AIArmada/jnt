@@ -72,14 +72,4 @@ return new class extends Migration
             });
         }
     }
-
-    public function down(): void
-    {
-        $tables = config('jnt.database.tables', []);
-        $prefix = config('jnt.database.table_prefix', 'jnt_');
-
-        $trackingEventsTable = $tables['tracking_events'] ?? $prefix . 'tracking_events';
-
-        Schema::dropIfExists($trackingEventsTable);
-    }
 };

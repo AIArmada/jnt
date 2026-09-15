@@ -40,14 +40,4 @@ return new class extends Migration
             });
         }
     }
-
-    public function down(): void
-    {
-        $tables = config('jnt.database.tables', []);
-        $prefix = config('jnt.database.table_prefix', 'jnt_');
-
-        $orderItemsTable = $tables['order_items'] ?? $prefix . 'order_items';
-
-        Schema::dropIfExists($orderItemsTable);
-    }
 };
