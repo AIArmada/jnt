@@ -177,7 +177,7 @@ php artisan jnt:webhook:test
 ## Requirements
 
 - PHP 8.4+
-- Laravel 11+
+- Laravel 13+
 - `commerce-support` package for multi-tenancy
 - `spatie/laravel-data` for DTOs
 - `spatie/laravel-webhook-client` for webhooks
