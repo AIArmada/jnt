@@ -23,7 +23,7 @@ composer require aiarmada/jnt
 Publish the configuration file:
 
 ```bash
-php artisan vendor:publish --provider="AIArmada\Jnt\JntServiceProvider" --tag="config"
+php artisan vendor:publish --tag=jnt-config
 ```
 
 This creates `config/jnt.php` with all configurable options.
@@ -72,7 +72,11 @@ JNT_OWNER_AUTO_ASSIGN=true
 
 # Optional - HTTP Settings
 JNT_HTTP_TIMEOUT=30
-JNT_HTTP_RETRY_TIMES=3
+JNT_HTTP_CONNECT_TIMEOUT=10
+
+# Optional - Webhook retry policy
+JNT_WEBHOOK_RETRY_TIMES=3
+JNT_WEBHOOK_RETRY_BACKOFF_SECONDS=60
 ```
 
 ## Obtaining API Credentials
@@ -89,10 +93,10 @@ JNT_HTTP_RETRY_TIMES=3
 
 J&T provides separate environments:
 
-| Environment | Base URL |
-|-------------|----------|
-| Testing | `https://uat-openapi.jtexpress.my/openplatformweb` |
-| Production | `https://openapi.jtexpress.my/openplatformweb` |
+| Environment | Base URL | Override env |
+|-------------|----------|---------------|
+| Testing | `https://demoopenapi.jtexpress.my/webopenplatformapi` | `JNT_BASE_URL_TESTING` |
+| Production | `https://ylopenapi.jtexpress.my/webopenplatformapi` | `JNT_BASE_URL_PRODUCTION` |
 
 The package automatically uses the correct URL based on `JNT_ENVIRONMENT`.
 
@@ -109,10 +113,11 @@ All Artisan commands extend the abstract `JntCommand` base class (`src/Console/J
 
 ## Verify Installation
 
-Run the configuration check command:
+Run the health check. It validates required config keys, the RSA private key, and the
+configured base URLs before attempting API connectivity:
 
 ```bash
-php artisan jnt:config:check
+php artisan jnt:health
 ```
 
 Expected output:

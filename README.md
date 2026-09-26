@@ -41,7 +41,8 @@ JNT_LOGGING_ENABLED=true
 JNT_WEBHOOKS_ENABLED=true
 ```
 
-> **Note:** When `JNT_ENVIRONMENT=testing`, the package automatically uses J&T's official sandbox credentials. You only need `JNT_CUSTOMER_CODE` and `JNT_PASSWORD`.
+> **info**
+> When `JNT_ENVIRONMENT=testing`, the package automatically uses J&T's official sandbox credentials. You only need `JNT_CUSTOMER_CODE` and `JNT_PASSWORD`.
 
 ---
 
@@ -217,7 +218,7 @@ Receive real-time tracking updates from J&T.
 
 ```bash
 # Check configuration
-php artisan jnt:config:check
+php artisan jnt:health
 
 # Health check
 php artisan jnt:health

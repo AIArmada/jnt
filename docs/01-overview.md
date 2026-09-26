@@ -158,20 +158,17 @@ All commands extend the abstract `JntCommand` base class (`Console/JntCommand.ph
 Commands are organized into subdirectories by concern:
 
 ```bash
-# Health
+# Health — also validates required config, the RSA private key, and base URLs
 php artisan jnt:health
 
 # Orders
-php artisan jnt:order:create {order-id}
-php artisan jnt:order:track {order-id}
-php artisan jnt:order:cancel {order-id}
-php artisan jnt:order:print {order-id}
-
-# Configuration
-php artisan jnt:config:check
+php artisan jnt:order:create --order-id= --sender-name= --sender-mobile= --receiver-name= --receiver-mobile= --receiver-address= --item-name= --item-qty=1 --weight=1
+php artisan jnt:order:track {order-id} {--tracking-number}
+php artisan jnt:order:cancel {order-id} {--reason=} {--tracking-number=}
+php artisan jnt:order:print {order-id} {--tracking-number=} {--path=storage/waybills}
 
 # Webhooks
-php artisan jnt:webhook:test
+php artisan jnt:webhook:test {--url=}
 ```
 
 ## Requirements
