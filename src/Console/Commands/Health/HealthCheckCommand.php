@@ -125,6 +125,18 @@ class HealthCheckCommand extends JntCommand
             }
         }
 
+        $privateKey = (string) config('jnt.private_key');
+        if ($privateKey !== '') {
+            $isRsaKey = str_contains($privateKey, 'BEGIN RSA PRIVATE KEY')
+                || str_contains($privateKey, 'BEGIN PRIVATE KEY');
+            $isHexString = ctype_xdigit($privateKey) && mb_strlen($privateKey) >= 16;
+
+            if (! $isRsaKey && ! $isHexString) {
+                $this->error('Private Key is not a valid RSA private key or hex string');
+                $hasErrors = true;
+            }
+        }
+
         $additionalConfigs = [
             'jnt.customer_code' => 'Customer Code',
             'jnt.password' => 'Password',
@@ -150,6 +162,15 @@ class HealthCheckCommand extends JntCommand
         } elseif ($environment !== 'production' && empty($baseUrls['testing'])) {
             $this->error('Testing Base URL not configured');
             $hasErrors = true;
+        }
+
+        foreach (['testing', 'production'] as $key) {
+            $url = $baseUrls[$key] ?? null;
+
+            if (is_string($url) && $url !== '' && ! filter_var($url, FILTER_VALIDATE_URL)) {
+                $this->error("{$key} Base URL is not a valid URL: {$url}");
+                $hasErrors = true;
+            }
         }
 
         if ($hasErrors) {

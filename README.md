@@ -217,7 +217,7 @@ Receive real-time tracking updates from J&T.
 
 ```bash
 # Check configuration
-php artisan jnt:config:check
+php artisan jnt:health
 
 # Health check
 php artisan jnt:health

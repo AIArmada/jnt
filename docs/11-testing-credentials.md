@@ -41,7 +41,7 @@ Never reuse sandbox credentials in production or commit active credentials to ve
 Run the package configuration check after updating the environment:
 
 ```bash
-php artisan jnt:config:check
+php artisan jnt:health
 ```
 
 Then clear cached configuration when applicable:

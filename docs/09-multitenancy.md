@@ -86,14 +86,14 @@ The `nullableMorphs('owner')` creates:
 ```php
 use AIArmada\CommerceSupport\Support\OwnerContext;
 
-// Set the current owner for all operations
-OwnerContext::setForRequest($tenant);
+// Scope all operations to one tenant
+OwnerContext::withOwner($tenant, function () {
+    // Now all queries are automatically scoped
+    $orders = JntOrder::query()->get(); // Only this tenant's orders
 
-// Now all queries are automatically scoped
-$orders = JntOrder::query()->get(); // Only this tenant's orders
-
-// Create order with automatic owner assignment
-$order = JntExpress::createOrder($data); // Owner auto-assigned
+    // Create order with automatic owner assignment
+    $order = JntExpress::createOrder($data); // Owner auto-assigned
+});
 ```
 
 ### Using OwnerResolverInterface
@@ -168,10 +168,13 @@ $orders = JntOrder::query()
     ->get();
 
 // Query only global records (no owner)
-$orders = JntOrder::query()
-    ->forOwner(null, includeGlobal: true)
+$globalOrders = JntOrder::query()
+    ->globalOnly()
     ->get();
 ```
+
+> **info**
+> `forOwner(null, includeGlobal: true)` is not the way to reach global rows. `null` means global-only, so use `globalOnly()` to select ownerless records.
 
 ### Bypassing Owner Scope
 
@@ -202,26 +205,30 @@ $allOrders = JntOrder::query()
 When `auto_assign_on_create` is enabled:
 
 ```php
-OwnerContext::setForRequest($tenant);
-
-// Owner is automatically set
-$order = JntExpress::createOrder($orderData);
-// $order->owner_type = Team::class
-// $order->owner_id = $tenant->id
+OwnerContext::withOwner($tenant, function () use ($orderData) {
+    // Owner is automatically set
+    $order = JntExpress::createOrder($orderData);
+    // $order->owner_type = Team::class
+    // $order->owner_id = $tenant->id
+});
 ```
 
 ### Manual Owner Assignment
 
-Explicitly set the owner:
+Passing an owner tuple that does not match the current context is rejected. Set the
+context to the owner you are writing for:
 
 ```php
-$order = JntOrder::create([
+$order = OwnerContext::withOwner($team, fn () => JntOrder::create([
     'order_id' => 'ORDER-123',
+    'customer_code' => config('jnt.customer_code'),
     'owner_type' => Team::class,
     'owner_id' => $team->id,
-    // ...
-]);
+]));
 ```
+
+> **info**
+> `customer_code` is `NOT NULL` in `jnt_orders` with no default, so it must be supplied on every insert. Owner columns are immutable after creation — editing `owner_type`/`owner_id` on a persisted row throws.
 
 ### Owner Inheritance
 
@@ -249,12 +256,12 @@ The service respects owner context:
 ```php
 use AIArmada\Jnt\Facades\JntExpress;
 
-// Set owner context
-OwnerContext::setForRequest($tenant);
-
-// All operations are scoped to this owner
-$order = JntExpress::createOrder($data);
-$tracking = JntExpress::trackParcel('JT123456');
+// Scope operations to this owner
+OwnerContext::withOwner($tenant, function () use ($data) {
+    // All operations are scoped to this owner
+    $order = JntExpress::createOrder($data);
+    $tracking = JntExpress::trackParcel(null, 'JT123456');
+});
 ```
 
 ### JntTrackingService
@@ -271,10 +278,12 @@ $orders = $service->getOrdersNeedingTrackingUpdateForOwner(
     limit: 100
 );
 
-// Sync tracking for owner
-$orders = $service->getOrdersNeedingTrackingUpdateForOwner($tenant, limit: 50);
+// Sync those orders
 $results = $service->batchSyncTracking($orders);
 ```
+
+> **warning**
+> `getOrdersNeedingTrackingUpdate()` and `batchSyncTracking()` have no owner argument. `getOrdersNeedingTrackingUpdate()` resolves the ambient owner and throws `AuthorizationException` when `jnt.owner.enabled` is `true` and no owner is resolved, so background work must iterate owners explicitly and call `getOrdersNeedingTrackingUpdateForOwner()`. `syncOrderTracking()` re-enters `OwnerContext::withOwner()` from the order's own tuple, so it is safe to call directly.
 
 ---
 
@@ -311,7 +320,33 @@ public static function getEloquentQuery(): Builder
 
 ### Jobs
 
-Jobs must explicitly handle owner context:
+Jobs must explicitly handle owner context. The `OwnerContextJob` trait from
+`commerce-support` resolves the owner and wraps the handler in
+`OwnerContext::withOwner()` for you — implement `performJob()`, not `handle()`:
+
+```php
+use AIArmada\CommerceSupport\Traits\OwnerContextJob;
+use AIArmada\Jnt\Services\JntTrackingService;
+
+class SyncJntTracking implements ShouldQueue
+{
+    use OwnerContextJob;
+
+    public function __construct(
+        public readonly string $ownerType,
+        public readonly string $ownerId
+    ) {}
+
+    public function performJob(): void
+    {
+        // The owner is already resolved by the trait
+        $service = app(JntTrackingService::class);
+        $service->batchSyncTracking($service->getOrdersNeedingTrackingUpdate(limit: 100));
+    }
+}
+```
+
+For a hand-rolled job, resolve the owner and scope the work yourself:
 
 ```php
 class SyncJntTracking implements ShouldQueue
@@ -320,21 +355,15 @@ class SyncJntTracking implements ShouldQueue
         private readonly string $ownerType,
         private readonly string $ownerId
     ) {}
-    
+
     public function handle(): void
     {
-        // Resolve owner
-        $owner = OwnerContext::fromTypeAndId(
-            $this->ownerType, 
-            $this->ownerId
-        );
-        
-        // Set context for this job
-        OwnerContext::setForRequest($owner);
+        $owner = OwnerContext::fromTypeAndId($this->ownerType, $this->ownerId);
 
-        // Now operations are scoped
-        $service = app(JntTrackingService::class);
-        $service->batchSyncTracking($service->getOrdersNeedingTrackingUpdate(100));
+        OwnerContext::withOwner($owner, function (): void {
+            $service = app(JntTrackingService::class);
+            $service->batchSyncTracking($service->getOrdersNeedingTrackingUpdate(limit: 100));
+        });
     }
 }
 ```
@@ -351,14 +380,14 @@ class SyncAllJntTracking extends Command
         // Get all active tenants
         Team::query()->chunk(100, function ($teams) {
             foreach ($teams as $team) {
-                // Set owner context
-                OwnerContext::setForRequest($team);
+                OwnerContext::withOwner($team, function () use ($team) {
+                    $service = app(JntTrackingService::class);
+                    $results = $service->batchSyncTracking(
+                        $service->getOrdersNeedingTrackingUpdate(limit: 50)
+                    );
 
-                // Sync this owner's orders
-                $service = app(JntTrackingService::class);
-                $results = $service->batchSyncTracking($service->getOrdersNeedingTrackingUpdate(50));
-                
-                $this->info("Synced {$team->name}: " . count($results['successful']));
+                    $this->info("Synced {$team->name}: " . count($results['successful']));
+                });
             }
         });
     }
@@ -387,10 +416,12 @@ class HandleStatusChanged
         
         // Resolve order with proper scoping
         $order = $event->resolveOrder();
-        
+
         if ($owner !== null) {
-            // Set context for any further operations
-            OwnerContext::setForRequest($owner);
+            // Enter the owner's context for any further operations
+            OwnerContext::withOwner($owner, function () use ($order) {
+                // ... operate on $order inside the owner's context
+            });
         }
     }
 }
@@ -410,7 +441,7 @@ $order = JntOrder::query()
 
 // Tracking events inherit owner from the order
 $trackingEvent = JntTrackingEvent::create([
-    'jnt_order_id' => $order->id,
+    'order_id' => $order->id,
     'owner_type' => $order->owner_type,
     'owner_id' => $order->owner_id,
     // ...
@@ -421,16 +452,18 @@ $trackingEvent = JntTrackingEvent::create([
 
 ## Global Records
 
-Records with `owner_type = null` and `owner_id = null` are considered global:
+Records with `owner_type = null` and `owner_id = null` are **global** — they belong
+to no tenant, not to every tenant. Creating one is a privileged write that needs an
+explicit global context:
 
 ```php
 // Create a global template order
-$globalOrder = JntOrder::create([
+$globalOrder = OwnerContext::withOwner(null, fn () => JntOrder::create([
     'order_id' => 'TEMPLATE-001',
+    'customer_code' => config('jnt.customer_code'),
     'owner_type' => null,
     'owner_id' => null,
-    // ...
-]);
+]));
 
 // Query with global records included
 $orders = JntOrder::query()
@@ -439,10 +472,12 @@ $orders = JntOrder::query()
 
 // Query only global records
 $globalOrders = JntOrder::query()
-    ->whereNull('owner_type')
-    ->whereNull('owner_id')
+    ->globalOnly()
     ->get();
 ```
+
+> **warning**
+> Global rows are never returned by an owner-scoped query unless `jnt.owner.include_global` is `true`, and they are not reachable by passing a different owner. Mutating a persisted global row requires an explicit global context, and owner tuples can never be promoted, demoted, or reassigned after creation.
 
 ---
 
@@ -490,10 +525,9 @@ use AIArmada\CommerceSupport\Support\OwnerContext;
 
 it('creates orders for the current owner', function () {
     $team = Team::factory()->create();
-    OwnerContext::setForRequest($team);
-    
-    $order = JntExpress::createOrder($data);
-    
+
+    $order = OwnerContext::withOwner($team, fn () => JntExpress::createOrder($data));
+
     expect($order->owner_type)->toBe(Team::class)
         ->and($order->owner_id)->toBe($team->id);
 });
@@ -501,15 +535,13 @@ it('creates orders for the current owner', function () {
 it('isolates orders between owners', function () {
     $team1 = Team::factory()->create();
     $team2 = Team::factory()->create();
-    
+
     // Create order for team1
-    OwnerContext::setForRequest($team1);
-    JntExpress::createOrder($data);
+    OwnerContext::withOwner($team1, fn () => JntExpress::createOrder($data));
 
     // Query from team2 context
-    OwnerContext::setForRequest($team2);
-    $orders = JntOrder::query()->get();
-    
+    $orders = OwnerContext::withOwner($team2, fn () => JntOrder::query()->get());
+
     expect($orders)->toBeEmpty();
 });
 ```

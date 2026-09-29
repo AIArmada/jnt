@@ -13,7 +13,7 @@ This guide covers common issues, error codes, and debugging techniques for the J
 Run the built-in configuration check command:
 
 ```bash
-php artisan jnt:config:check
+php artisan jnt:health
 ```
 
 This verifies:
@@ -60,7 +60,7 @@ This verifies:
 3. Check that `bizContent` is properly JSON-encoded
 4. Run the config check:
    ```bash
-   php artisan jnt:config:check
+   php artisan jnt:health
    ```
 
 ---
@@ -109,7 +109,7 @@ JNT_CUSTOMER_CODE=your_customer_code
 **Symptoms**: Webhooks configured but not receiving updates.
 
 **Checklist**:
-1. Verify webhook URL is publicly accessible:
+1. Verify the webhook route is registered (default path, no extra `/api` prefix):
    ```bash
    curl -X POST https://yourdomain.com/webhooks/jnt/status
    ```
@@ -119,7 +119,7 @@ JNT_CUSTOMER_CODE=your_customer_code
    JNT_PRIVATE_KEY=your_private_key
    ```
 
-3. Verify routes are published:
+3. Verify routes are registered (they are not published):
    ```bash
    php artisan route:list --name=jnt
    ```
@@ -205,10 +205,10 @@ $address = AddressData::from([
     'name' => 'John Doe',
     'phone' => '60123456789',
     'address' => '123 Jalan Example',
-    'postcode' => '50000', // Must be 5 digits
+    'post_code' => '50000', // Must be 5 digits
     'city' => 'Kuala Lumpur',
     'state' => 'Kuala Lumpur',
-    'country' => 'Malaysia',
+    'country_code' => 'MYS',
 ]);
 ```
 
@@ -235,9 +235,7 @@ $address = AddressData::from([
 
 3. Bypass scope for debugging (temporarily):
    ```php
-   $allOrders = JntOrder::query()
-       ->withoutGlobalScope(\AIArmada\CommerceSupport\Support\OwnerScope::class)
-       ->get();
+   $allOrders = JntOrder::query()->withoutOwnerScope()->get();
    ```
 
 ---
@@ -324,6 +322,7 @@ try {
         'message' => $e->getMessage(),
         'code' => $e->getCode(),
         'response' => $e->apiResponse,
+        'endpoint' => $e->endpoint,
     ]);
 }
 ```
@@ -331,14 +330,15 @@ try {
 ### Webhook Debugging
 
 ```php
-// Check recent webhooks
+// Check recent webhooks (JntWebhookLog reads the shared webhook_calls table,
+// filtered to the jnt.webhooks.status webhook)
 $logs = JntWebhookLog::query()
     ->latest()
     ->take(10)
-    ->get(['id', 'tracking_number', 'processed_at', 'processing_error']);
+    ->get(['id', 'tracking_number', 'processing_status', 'processed_at', 'processing_error']);
 
 foreach ($logs as $log) {
-    echo "{$log->tracking_number}: " . ($log->processing_error ?? 'OK') . "\n";
+    echo "{$log->tracking_number}: " . ($log->processing_error ?? $log->processing_status) . "\n";
 }
 ```
 
@@ -385,19 +385,24 @@ JNT_PASSWORD=test_password
 
 ### Mock API for Unit Tests
 
+`JntClient` uses Laravel's HTTP client, so fake at the transport layer:
+
 ```php
-use AIArmada\Jnt\Exceptions\JntApiException;
 use AIArmada\Jnt\Services\JntExpressService;
+use Illuminate\Support\Facades\Http;
 
 it('handles API errors gracefully', function () {
-    $service = Mockery::mock(JntExpressService::class);
-    $service->shouldReceive('createOrderFromArray')
-        ->andThrow(JntApiException::orderCreationFailed('Customer code is required'));
+    Http::fake([
+        '*/order/addOrder' => Http::response([
+            'code' => 999001010,
+            'msg' => 'Customer code is required',
+        ]),
+    ]);
 
-    app()->instance(JntExpressService::class, $service);
+    $service = app(JntExpressService::class);
 
-    expect(fn () => app(JntExpressService::class)->createOrderFromArray($data))
-        ->toThrow(JntApiException::class);
+    expect(fn () => $service->createOrder($sender, $receiver, $items, $packageInfo))
+        ->toThrow(\AIArmada\Jnt\Exceptions\JntApiException::class);
 });
 ```
 
@@ -411,22 +416,20 @@ it('handles API errors gracefully', function () {
 
 **Solutions**:
 
-1. Reduce batch size:
+1. Reduce the chunk size (batch calls already run in bounded chunks):
    ```php
-   $batches = array_chunk($orders, 25); // Smaller batches
+   // config/jnt.php
+   'batch' => [
+       'concurrency_chunk_size' => 10,
+   ],
    ```
 
-2. Use queued jobs:
-   ```php
-   foreach ($batches as $batch) {
-       ProcessJntBatch::dispatch($batch);
-   }
-   ```
+2. Move the call into a queued job of your own so the request does not block.
 
-3. Enable concurrency:
+3. Enable concurrency (uses Laravel's Concurrency facade internally):
    ```php
-   // Uses Laravel's Concurrency facade internally
    JntExpress::batchCreateOrders($orders);
+   JntExpress::batchTrackParcels(orderIds: $orderIds);
    ```
 
 ### Database Query Optimization
@@ -486,4 +489,4 @@ Before going to production, verify:
 - [ ] Queue workers running
 - [ ] Error logging configured
 - [ ] Owner scoping enabled (if multi-tenant)
-- [ ] Config check passes: `php artisan jnt:config:check`
+- [ ] Config check passes: `php artisan jnt:health`

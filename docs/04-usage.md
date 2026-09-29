@@ -425,7 +425,8 @@ try {
     $result = JntExpress::createOrderFromArray($order);
 } catch (JntValidationException $e) {
     // Validation failed
-    $errors = $e->errors;
+    $errors = $e->errors;   // array<string, mixed> keyed by field
+    $field = $e->field;     // string|null
     $message = $e->getMessage();
 } catch (JntApiException $e) {
     // API returned an error
@@ -458,6 +459,41 @@ $error->getDescription(); // Detailed troubleshooting info
 $error->isRetryable();    // Should retry?
 $error->isClientError();  // 4xx-equivalent?
 $error->getCategory();    // "Authentication", "Validation", etc.
+```
+
+## Artisan Commands
+
+```bash
+# Validate credentials and connectivity
+php artisan jnt:health
+
+# Check J&T API reachability (development/testing only)
+php artisan jnt:health
+
+# Create an order (all options; prompts for anything omitted)
+php artisan jnt:order:create \
+    --order-id=ORDER-2024-001 \
+    --sender-name="Store Name" \
+    --sender-mobile=60123456789 \
+    --receiver-name="John Doe" \
+    --receiver-mobile=60198765432 \
+    --receiver-address="456 Customer Road" \
+    --item-name="Wireless Mouse" \
+    --item-qty=2 \
+    --weight=0.5
+
+# Track by order ID, or pass --tracking-number to treat the argument as a bill code
+php artisan jnt:order:track ORDER-2024-001
+php artisan jnt:order:track JT630002864925 --tracking-number
+
+# Cancel (--reason accepts any CancellationReason value)
+php artisan jnt:order:cancel ORDER-2024-001 --reason=customer_request --tracking-number=JT630002864925
+
+# Print a waybill PDF
+php artisan jnt:order:print ORDER-2024-001 --tracking-number=JT630002864925 --path=storage/waybills
+
+# Send a signed test payload to the webhook endpoint
+php artisan jnt:webhook:test --url=https://example.test/webhooks/jnt/status
 ```
 
 ## Tracking events and cart rating
