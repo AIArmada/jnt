@@ -29,20 +29,17 @@ php artisan migrate
 
 ```env
 JNT_ENVIRONMENT=testing  # or 'production'
-JNT_CUSTOMER_CODE=your_customer_code
-JNT_PASSWORD=your_password
-
-# Production only (testing uses J&T's public sandbox credentials):
 JNT_API_ACCOUNT=your_api_account
 JNT_PRIVATE_KEY=your_private_key
+JNT_CUSTOMER_CODE=your_customer_code
+JNT_PASSWORD=your_password
 
 # Optional
 JNT_LOGGING_ENABLED=true
 JNT_WEBHOOKS_ENABLED=true
 ```
 
-> **info**
-> When `JNT_ENVIRONMENT=testing`, the package automatically uses J&T's official sandbox credentials. You only need `JNT_CUSTOMER_CODE` and `JNT_PASSWORD`.
+> **Note:** Both testing and production require explicit credentials from your own J&T account. The package never injects shared sandbox credentials. See [Testing Credentials](docs/11-testing-credentials.md).
 
 ---
 
@@ -148,9 +145,11 @@ Type-safe enums prevent invalid values:
 
 ```php
 // Express Type
-ExpressType::DOMESTIC   // Standard delivery
-ExpressType::NEXT_DAY   // Express next day
-ExpressType::FRESH      // Cold chain delivery
+ExpressType::DOMESTIC     // Standard delivery
+ExpressType::NEXT_DAY     // Express next day
+ExpressType::FRESH        // Cold chain delivery
+ExpressType::DOOR_TO_DOOR // Door to door
+ExpressType::SAME_DAY     // Same day
 
 // Service Type
 ServiceType::DOOR_TO_DOOR  // Pickup from sender
@@ -218,7 +217,7 @@ Receive real-time tracking updates from J&T.
 
 ```bash
 # Check configuration
-php artisan jnt:health
+php artisan jnt:config:check
 
 # Health check
 php artisan jnt:health
@@ -237,10 +236,10 @@ php artisan jnt:order:print ORDER-123 --tracking-number=JT123456
 
 ## Documentation
 
-- [API Reference](docs/api-reference.md) – Complete method reference
-- [Batch Operations](docs/batch-operations.md) – Process multiple orders efficiently
-- [Webhooks](docs/webhooks.md) – Webhook integration guide
-- [Testing Credentials](docs/testing-credentials.md) – Auto-configuration for sandbox
+- [API Reference](docs/10-api-reference.md) – Complete method reference
+- [Batch Operations](docs/07-batch-operations.md) – Process multiple orders efficiently
+- [Webhooks](docs/06-webhooks.md) – Webhook integration guide
+- [Testing Credentials](docs/11-testing-credentials.md) – Auto-configuration for sandbox
 
 ---
 

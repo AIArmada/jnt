@@ -9,6 +9,7 @@ use AIArmada\CommerceSupport\Contracts\OwnerResolverInterface;
 use AIArmada\CommerceSupport\Support\NullOwnerResolver;
 use AIArmada\Jnt\Cart\JntShippingCalculator;
 use AIArmada\Jnt\Console\Commands\Health\HealthCheckCommand;
+use AIArmada\Jnt\Console\Commands\Orders\ConfigCheckCommand;
 use AIArmada\Jnt\Console\Commands\Orders\OrderCancelCommand;
 use AIArmada\Jnt\Console\Commands\Orders\OrderCreateCommand;
 use AIArmada\Jnt\Console\Commands\Orders\OrderPrintCommand;
@@ -56,6 +57,7 @@ class JntServiceProvider extends PackageServiceProvider
             ->discoversMigrations()
             ->hasRoutes(['webhooks', 'web'])
             ->hasCommands([
+                ConfigCheckCommand::class,
                 HealthCheckCommand::class,
                 OrderCreateCommand::class,
                 OrderTrackCommand::class,

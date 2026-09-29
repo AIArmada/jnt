@@ -71,10 +71,10 @@ packages/jnt/
 │   ├── Console/
 │   │   ├── JntCommand.php     # Base class for all commands (provides $this->client())
 │   │   └── Commands/
-│   │       ├── health/        # Health check commands
-│   │       ├── orders/        # Order management commands
-│   │       ├── tracking/      # Tracking commands
-│   │       └── webhooks/      # Webhook testing commands
+│   │       ├── Health/        # Health check commands
+│   │       ├── Orders/        # Order management commands
+│   │       ├── Tracking/      # Tracking commands
+│   │       └── Webhooks/      # Webhook testing commands
 │   ├── Contracts/             # Contracts and interfaces
 │   ├── Data/                  # Data Transfer Objects (Spatie Laravel Data)
 │   ├── Enums/                 # PHP 8.1+ enums for API values
@@ -158,17 +158,20 @@ All commands extend the abstract `JntCommand` base class (`Console/JntCommand.ph
 Commands are organized into subdirectories by concern:
 
 ```bash
-# Health — also validates required config, the RSA private key, and base URLs
+# Health
 php artisan jnt:health
 
 # Orders
-php artisan jnt:order:create --order-id= --sender-name= --sender-mobile= --receiver-name= --receiver-mobile= --receiver-address= --item-name= --item-qty=1 --weight=1
-php artisan jnt:order:track {order-id} {--tracking-number}
-php artisan jnt:order:cancel {order-id} {--reason=} {--tracking-number=}
-php artisan jnt:order:print {order-id} {--tracking-number=} {--path=storage/waybills}
+php artisan jnt:order:create {order-id}
+php artisan jnt:order:track {order-id}
+php artisan jnt:order:cancel {order-id}
+php artisan jnt:order:print {order-id}
+
+# Configuration
+php artisan jnt:config:check
 
 # Webhooks
-php artisan jnt:webhook:test {--url=}
+php artisan jnt:webhook:test
 ```
 
 ## Requirements
@@ -196,6 +199,6 @@ php artisan jnt:webhook:test {--url=}
 - [Batch operations](07-batch-operations.md)
 - [Events](08-events.md)
 - [Multitenancy](09-multitenancy.md)
-- [API reference](api-reference.md)
-- [Testing credentials](testing-credentials.md)
+- [API reference](10-api-reference.md)
+- [Testing credentials](11-testing-credentials.md)
 - [Filament JNT overview](../../filament-jnt/docs/01-overview.md)

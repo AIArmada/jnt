@@ -47,4 +47,4 @@ keywords:
 
 ## Docs map
 - Start: `01-overview` → `03-configuration` → `04-usage` → `99-troubleshooting`
-- Deep dives: `05-tracking.md`, `06-webhooks.md`, `07-batch-operations.md`, `08-events.md`, `09-multitenancy.md`, `api-reference.md`, `testing-credentials.md`
+- Deep dives: `05-tracking.md`, `06-webhooks.md`, `07-batch-operations.md`, `08-events.md`, `09-multitenancy.md`, `10-api-reference.md`, `11-testing-credentials.md`

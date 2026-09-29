@@ -44,7 +44,7 @@ $tracking = JntExpress::trackParcel(orderId: 'ORDER-123');
 // Or by tracking number
 $tracking = JntExpress::trackParcel(trackingNumber: 'JT630002864925');
 
-echo $tracking->getLatestStatus();  // Latest scan type, e.g. "SIGN"
+echo $tracking->lastStatus;
 
 foreach ($tracking->details as $detail) {
     echo "{$detail->scanTime}: {$detail->description}\n";
@@ -95,7 +95,7 @@ echo $details['trackingNumber'];
 
 ## Batch Operations
 
-Process multiple orders efficiently. See [batch-operations.md](batch-operations.md) for details.
+Process multiple orders efficiently. See [batch operations guide](07-batch-operations.md) for details.
 
 ```php
 // Batch create
@@ -116,7 +116,7 @@ $results = JntExpress::batchCancelOrders(
 // Batch print
 $results = JntExpress::batchPrintWaybills(
     orderIds: ['ORDER-1'],
-    trackingNumbers: ['JT123'],
+    templateName: null,
 );
 ```
 
@@ -195,17 +195,14 @@ $order->chargeableWeight;  // Billable weight
 ### TrackingData (Response)
 
 ```php
-$tracking->trackingNumber;        // J&T tracking number
-$tracking->orderId;               // Your order reference
-$tracking->details;               // DataCollection of TrackingDetailData
-$tracking->getLatestDetail();     // Most recent TrackingDetailData, or null
-$tracking->getLatestStatus();     // Latest scan type, e.g. "SIGN"
-$tracking->getLatestLocation();   // Latest network name
-$tracking->isDelivered();         // Check if delivered
+$tracking->trackingNumber;   // J&T tracking number
+$tracking->orderId;          // Your order reference
+$tracking->details;          // All tracking events
+$tracking->getLatestDetail();   // Most recent event
+$tracking->getLatestStatus();   // Latest status
+$tracking->getLatestLocation(); // Latest location
+$tracking->isDelivered();    // Check if delivered
 ```
-
-> **info**
-> `TrackingData` has no `hasProblem()` helper. Exemption is derived per event with `$detail->isInTransit()` / `isDelivered()`, or from the persisted order via `JntOrder::hasProblem()`.
 
 ---
 
@@ -218,6 +215,8 @@ $tracking->isDelivered();         // Check if delivered
 | `DOMESTIC` | `EZ` | Standard delivery |
 | `NEXT_DAY` | `EX` | Express next day |
 | `FRESH` | `FD` | Cold chain delivery |
+| `DOOR_TO_DOOR` | `DO` | Door to door |
+| `SAME_DAY` | `JS` | Same day |
 
 ### ServiceType
 
@@ -246,23 +245,13 @@ $tracking->isDelivered();         // Check if delivered
 ```php
 CancellationReason::CUSTOMER_REQUEST
 CancellationReason::CUSTOMER_CHANGED_MIND
-CancellationReason::CUSTOMER_ORDERED_BY_MISTAKE
-CancellationReason::CUSTOMER_FOUND_BETTER_PRICE
 CancellationReason::OUT_OF_STOCK
-CancellationReason::INCORRECT_PRICING
-CancellationReason::UNABLE_TO_FULFILL
 CancellationReason::DUPLICATE_ORDER
 CancellationReason::INCORRECT_ADDRESS
-CancellationReason::ADDRESS_NOT_SERVICEABLE
-CancellationReason::DELIVERY_NOT_AVAILABLE
 CancellationReason::PAYMENT_FAILED
-CancellationReason::PAYMENT_PENDING_TOO_LONG
 CancellationReason::SYSTEM_ERROR
 CancellationReason::OTHER
 ```
-
-`cancelOrder()` and `batchCancelOrders()` accept either the enum or a free-form
-string reason.
 
 ---
 
@@ -282,12 +271,10 @@ use AIArmada\Jnt\Exceptions\{
 try {
     $order = JntExpress::createOrderFromArray($data);
 } catch (JntValidationException $e) {
-    $errors = $e->errors;   // array<string, array<string>> keyed by field
-    $field = $e->field;
+    $errors = $e->errors;
 } catch (JntApiException $e) {
-    $errorCode = $e->errorCode;   // e.g. 'AUTH_ERROR', 'INVALID_RESPONSE'
-    $response = $e->apiResponse; // raw decoded J&T payload
-    $endpoint = $e->endpoint;
+    $statusCode = $e->getCode();
+    $response = $e->apiResponse;
 } catch (JntNetworkException $e) {
     Log::error('Network error', ['exception' => $e]);
 } catch (JntException $e) {
@@ -295,25 +282,13 @@ try {
 }
 ```
 
-Exception detail is exposed as public readonly properties, not getters.
-
 ### Common Error Codes
 
-J&T reports failures as a business `code` in the response body, not as HTTP
-status codes. The package maps them onto `AIArmada\Jnt\Enums\ErrorCode`:
-
-| `ErrorCode` | Meaning | Solution |
+| Code | Meaning | Solution |
 |------|---------|----------|
-| `145003010` / `145003012` | API account missing or unauthorised | Check `JNT_API_ACCOUNT` and its interface permissions |
-| `145003030` | Signature verification failed | Check `JNT_PRIVATE_KEY` and the `digest` header |
-| `145003052` / `145003053` | Missing `digest` / `timestamp` header | Both headers are sent by `JntClient` |
-| `145003050` | Illegal parameters | Review the `bizContent` payload |
-| `999001010` / `999001011` / `999001012` | Missing `customerCode` / `password` / `txlogisticId` | Check `JNT_CUSTOMER_CODE`, `JNT_PASSWORD`, and the order ID |
-| `999001030` / `999002000` | Order or tracking number not found | Verify the reference |
-| `999002010` | Order cannot be cancelled in its current state | Only pending orders can be cancelled |
-
-A non-`1` body code raises `JntApiException`. Genuine HTTP 4xx/5xx responses
-raise `JntNetworkException` with the status on `$e->httpStatus`.
+| 401 | Invalid credentials | Check API account and private key |
+| 422 | Validation failed | Review request data |
+| 500 | J&T server error | Retry with exponential backoff |
 
 ---
 

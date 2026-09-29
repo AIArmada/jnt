@@ -14,23 +14,18 @@ Configure table names and prefixes:
 'database' => [
     // Table name prefix (default: jnt_)
     'table_prefix' => 'jnt_',
-
-    // JSON column type for package JSON columns
-    'json_column_type' => env('JNT_JSON_COLUMN_TYPE', 'jsonb'),
-
+    
     // Override individual table names
     'tables' => [
-        'orders' => null,           // Uses: jnt_orders
-        'order_items' => null,      // Uses: jnt_order_items
-        'order_parcels' => null,    // Uses: jnt_order_parcels
-        'tracking_events' => null,  // Uses: jnt_tracking_events
-        'webhook_calls' => null,    // Uses: webhook_calls
+        'orders' => null,         // Uses: jnt_orders
+        'order_items' => null,    // Uses: jnt_order_items
+        'order_parcels' => null,  // Uses: jnt_order_parcels
+        'tracking_events' => null, // Uses: jnt_tracking_events
     ],
+    
 ],
 ```
-
-`commerce_json_column_type('jnt')` resolves the column type from `JNT_JSON_COLUMN_TYPE`, then
-`COMMERCE_JSON_COLUMN_TYPE`, then `jnt.database.json_column_type`, defaulting to `jsonb`.
+The JSON column type is controlled by `database.json_column_type` and defaults to the shared `commerce-support` setting.
 
 ### Custom Table Names
 
@@ -72,36 +67,22 @@ To use custom table names:
 | `local` | Alias for testing |
 | `development` | Alias for testing |
 
-## Features
+## Notifications
 
-### Notifications
+Toggle built-in shipment notifications:
 
 ```php
 'notifications' => [
+    // Enable built-in notifications
     'enabled' => env('JNT_NOTIFICATIONS_ENABLED', true),
+
+    // Dispatch notifications to the queue
     'queue' => env('JNT_NOTIFICATIONS_QUEUE', true),
+
+    // Support contact included in notifications
     'support_contact' => env('JNT_SUPPORT_CONTACT'),
 ],
 ```
-
-### Owner Scoping
-
-Configure owner-based data isolation:
-
-```php
-'owner' => [
-    // Enable multi-tenant scoping
-    'enabled' => env('JNT_OWNER_ENABLED', false),
-
-    // Include global (null owner) records in queries
-    'include_global' => env('JNT_OWNER_INCLUDE_GLOBAL', false),
-
-    // Auto-assign owner on record creation
-    'auto_assign_on_create' => env('JNT_OWNER_AUTO_ASSIGN', true),
-],
-```
-
-See [Multi-tenancy](09-multitenancy.md) for detailed usage.
 
 ## Tracking polling
 
@@ -181,17 +162,24 @@ JNT_WEBHOOKS_VERIFY_SIGNATURE=false
 Disabling verification is refused in production: signatures fail closed with an
 error log entry.
 
-## Integrations
+## Owner Scoping (Multi-tenancy)
 
-### Cart
-
-`JntShippingCalculator` caches its computed quote per cart for this many minutes:
+Configure owner-based data isolation:
 
 ```php
-'cart' => [
-    'quote_ttl_minutes' => env('JNT_QUOTE_TTL', 30),
+'owner' => [
+    // Enable multi-tenant scoping
+    'enabled' => env('JNT_OWNER_ENABLED', false),
+    
+    // Include global (null owner) records in queries
+    'include_global' => env('JNT_OWNER_INCLUDE_GLOBAL', false),
+    
+    // Auto-assign owner on record creation
+    'auto_assign_on_create' => env('JNT_OWNER_AUTO_ASSIGN', true),
 ],
 ```
+
+See [Multi-tenancy](09-multitenancy.md) for detailed usage.
 
 ## Logging
 
@@ -286,18 +274,125 @@ public function boot(): void
 }
 ```
 
-### Configuring the JntStatusMapper Carrier Code
+### JntStatusMapper Carrier Code
 
-The built-in J&T strategy hardcodes carrier code `jnt` in `JntStatusMapper::getCarrierCode()`.
-There is no config key for it — to change it, extend `JntStatusMapper` (or implement
-`StatusMappingStrategyInterface` yourself) and return the code you need from `getCarrierCode()`.
-The registry keys strategies by that return value.
+The built-in J&T strategy always reports carrier code `jnt` via `getCarrierCode()`; it is not configurable. Custom strategies are keyed in the registry by whatever their own `getCarrierCode()` returns.
 
 ## Complete Configuration Example
 
-The blocks above are the canonical per-key reference. To see the shipped defaults with all
-sections in file order, read `config/jnt.php` after publishing:
+```php
+<?php
 
-```bash
-php artisan vendor:publish --tag=jnt-config
+return [
+    /*
+    |--------------------------------------------------------------------------
+    | Database
+    |--------------------------------------------------------------------------
+    */
+    'database' => [
+        'table_prefix' => 'jnt_',
+        'tables' => [],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | API Credentials
+    |--------------------------------------------------------------------------
+    */
+    'api_account' => env('JNT_API_ACCOUNT'),
+    'private_key' => env('JNT_PRIVATE_KEY'),
+    'customer_code' => env('JNT_CUSTOMER_CODE'),
+    'password' => env('JNT_PASSWORD'),
+    'environment' => env('JNT_ENVIRONMENT', 'testing'),
+    
+    'base_urls' => [
+        'testing' => env('JNT_BASE_URL_TESTING', 'https://demoopenapi.jtexpress.my/webopenplatformapi'),
+        'production' => env('JNT_BASE_URL_PRODUCTION', 'https://ylopenapi.jtexpress.my/webopenplatformapi'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Notifications
+    |--------------------------------------------------------------------------
+    */
+    'notifications' => [
+        'enabled' => env('JNT_NOTIFICATIONS_ENABLED', true),
+        'queue' => env('JNT_NOTIFICATIONS_QUEUE', true),
+        'support_contact' => env('JNT_SUPPORT_CONTACT'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | HTTP Client
+    |--------------------------------------------------------------------------
+    */
+    'http' => [
+        'timeout' => 30,
+        'connect_timeout' => 10,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Webhooks
+    |--------------------------------------------------------------------------
+    */
+    'webhooks' => [
+        'enabled' => env('JNT_WEBHOOKS_ENABLED', true),
+        'route' => 'webhooks/jnt/status',
+        'middleware' => ['api'],
+        'verify_signature' => env('JNT_WEBHOOKS_VERIFY_SIGNATURE', true),
+        'log_payloads' => env('JNT_WEBHOOK_LOG_PAYLOADS', false),
+        'retry_times' => env('JNT_WEBHOOK_RETRY_TIMES', 3),
+        'retry_backoff_seconds' => env('JNT_WEBHOOK_RETRY_BACKOFF_SECONDS', 60),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Owner Scoping
+    |--------------------------------------------------------------------------
+    */
+    'owner' => [
+        'enabled' => env('JNT_OWNER_ENABLED', false),
+        'include_global' => env('JNT_OWNER_INCLUDE_GLOBAL', false),
+        'auto_assign_on_create' => env('JNT_OWNER_AUTO_ASSIGN', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Logging
+    |--------------------------------------------------------------------------
+    */
+    'logging' => [
+        'enabled' => true,
+        'channel' => 'stack',
+        'level' => 'info',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Shipping
+    |--------------------------------------------------------------------------
+    */
+    'shipping' => [
+        'origin' => [
+            'name' => env('JNT_ORIGIN_NAME', 'Store'),
+            'phone' => env('JNT_ORIGIN_PHONE', ''),
+            'address' => env('JNT_ORIGIN_ADDRESS', ''),
+            'post_code' => env('JNT_ORIGIN_POSTCODE', ''),
+            'city' => env('JNT_ORIGIN_CITY', ''),
+            'state' => env('JNT_ORIGIN_STATE', ''),
+            'country_code' => 'MYS',
+        ],
+        'base_rate' => 800,
+        'per_kg_rate' => 200,
+        'min_charge' => 800,
+        'default_estimated_days' => 3,
+        'east_malaysia_extra_days' => 2,
+        'region_multipliers_bp' => [
+            'sabah' => 15000,
+            'sarawak' => 15000,
+            'labuan' => 15000,
+        ],
+    ],
+];
 ```

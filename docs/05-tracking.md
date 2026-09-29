@@ -23,11 +23,11 @@ if ($tracking->isDelivered()) {
     echo 'Package delivered!';
 }
 
-// Latest scan (getLatestDetail() returns null when there are no details)
+// Get latest status
 $latest = $tracking->getLatestDetail();
-echo $latest?->description;           // e.g., "Parcel delivered"
-echo $tracking->getLatestStatus();    // Latest scan type, e.g. "SIGN"
-echo $tracking->getLatestLocation();  // Latest network name
+echo $latest->description;        // e.g., "Parcel delivered"
+echo $latest->scanNetworkName;    // Location name
+echo $latest->scanTime;           // Timestamp
 ```
 
 ### Track by Tracking Number
@@ -170,7 +170,7 @@ echo $updatedOrder->last_status;       // Latest status description
 echo $updatedOrder->last_status_code;  // Latest scan type code
 echo $updatedOrder->last_tracked_at;   // Sync timestamp
 echo $updatedOrder->delivered_at;      // Delivery timestamp (if delivered)
-$updatedOrder->hasProblem();           // true if issues detected (problem_at is set)
+echo $updatedOrder->hasProblem();      // true if issues detected
 ```
 
 ### Batch Sync
@@ -212,21 +212,18 @@ $results = $trackingService->batchSyncTracking($orders);
 Set up scheduled tracking sync in your scheduler:
 
 ```php
-// routes/console.php
-use AIArmada\Jnt\Services\JntTrackingService;
-use Illuminate\Support\Facades\Schedule;
-
-Schedule::call(function () {
-    $trackingService = app(JntTrackingService::class);
-    
-    $orders = $trackingService->getOrdersNeedingTrackingUpdate(100);
-    $trackingService->batchSyncTracking($orders);
-    
-})->hourly();
+// app/Console/Kernel.php
+protected function schedule(Schedule $schedule): void
+{
+    $schedule->call(function () {
+        $trackingService = app(JntTrackingService::class);
+        
+        $orders = $trackingService->getOrdersNeedingTrackingUpdate(100);
+        $trackingService->batchSyncTracking($orders);
+        
+    })->hourly();
+}
 ```
-
-> **warning**
-> `getOrdersNeedingTrackingUpdate()` takes no owner argument. With `jnt.owner.enabled` set to `true` it resolves the ambient owner and throws `AuthorizationException` when none is resolved, so a scheduled task must iterate owners explicitly and call `getOrdersNeedingTrackingUpdateForOwner()`. See [multitenancy.md](09-multitenancy.md).
 
 ## Tracking Events
 
@@ -300,18 +297,13 @@ class OrderStatusListener
 {
     public function handle(JntOrderStatusChanged $event): void
     {
-        $newStatus = $event->currentStatus;        // TrackingStatus
+        $order = $event->resolveOrder();
+        $newStatus = $event->currentStatus; // TrackingStatus
         $previousCode = $event->previousStatusCode;
 
         // Notify customer
-        if ($newStatus === TrackingStatus::Delivered) {
-            // Owner-aware lookup; returns null for cross-owner or deleted orders.
-            $order = $event->resolveOrder();
-
-            if ($order !== null) {
-                // $order has no `customer` relation; resolve your own order
-                // aggregate here and dispatch from it.
-            }
+        if ($newStatus === TrackingStatus::Delivered && $order !== null) {
+            $order->customer->notify(new OrderDeliveredNotification($order));
         }
     }
 }
@@ -379,7 +371,7 @@ class MyCarrierStrategy implements StatusMappingStrategyInterface
     {
         return match ($carrierEventCode) {
             'DELIVERED' => NormalizedTrackingStatus::SignedFor,
-            'PICKUP' => NormalizedTrackingStatus::PickedUp,
+            'PICKUP' => NormalizedTrackingStatus::Collected,
             default => NormalizedTrackingStatus::InTransit,
         };
     }

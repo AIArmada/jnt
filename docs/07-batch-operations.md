@@ -8,8 +8,7 @@ Process multiple orders efficiently with batch operations. All batch methods ret
 
 ## Response Format
 
-All batch methods return `successful` and `failed` keys. `batchCreateOrders()` and
-`batchCancelOrders()` identify failures by `orderId`:
+All batch methods return:
 
 ```php
 [
@@ -20,19 +19,6 @@ All batch methods return `successful` and `failed` keys. `batchCreateOrders()` a
             'error' => 'Error message',
             'exception' => $e,
         ],
-    ],
-]
-```
-
-`batchPrintWaybills()` returns the same `orderId`/`error` keys without `exception`,
-and its successful entries are `['orderId' => ..., 'data' => ...]`. `batchTrackParcels()`
-identifies failures by `identifier` and `type` instead:
-
-```php
-[
-    'successful' => [...], // TrackingData objects
-    'failed' => [
-        ['identifier' => 'JT123456', 'type' => 'tracking', 'error' => 'Error message'],
     ],
 ]
 ```
@@ -95,7 +81,7 @@ $result = JntExpress::batchTrackParcels(
 
 foreach ($result['successful'] as $tracking) {
     echo "{$tracking->trackingNumber}: {$tracking->getLatestStatus()}\n";
-    
+
     if ($tracking->isDelivered()) {
         // Handle delivery
     }
@@ -129,25 +115,16 @@ echo "Failed: " . count($result['failed']) . " orders\n";
 ## Batch Print Waybills
 
 ```php
-// By order IDs
-$result = JntExpress::batchPrintWaybills(
-    orderIds: ['ORDER-1', 'ORDER-2']
-);
-
-// With a custom template for every label in the batch
+// By order IDs, with an optional template name
 $result = JntExpress::batchPrintWaybills(
     orderIds: ['ORDER-1', 'ORDER-2'],
-    templateName: 'CUSTOM_TEMPLATE'
+    templateName: null,
 );
 
-foreach ($result['successful'] as $waybill) {
-    $pdfUrl = $waybill['data']['urlContent'] ?? null;
-    $pdfBase64 = $waybill['data']['base64EncodeContent'] ?? null;
+foreach ($result['successful'] as $label) {
+    $pdfUrl = $label['data']['urlContent'] ?? null;
 }
 ```
-
-> **info**
-> Waybills are looked up by order ID only. J&T resolves the tracking number from the order, so `batchPrintWaybills()` takes no `trackingNumbers` argument.
 
 ---
 
@@ -268,12 +245,11 @@ class ProcessPendingOrders extends Command
 }
 ```
 
-Register in scheduler. The batch job is dispatched by your own command, so schedule that
-command — the package ships no batch command of its own:
+Register in scheduler:
 
 ```php
 // routes/console.php
-Schedule::command('jnt:batch-sync-tracking')
+Schedule::command('orders:process-pending')
     ->everyFiveMinutes()
     ->withoutOverlapping();
 ```

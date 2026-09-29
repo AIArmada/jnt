@@ -23,7 +23,7 @@ composer require aiarmada/jnt
 Publish the configuration file:
 
 ```bash
-php artisan vendor:publish --tag=jnt-config
+php artisan vendor:publish --tag="jnt-config"
 ```
 
 This creates `config/jnt.php` with all configurable options.
@@ -73,10 +73,6 @@ JNT_OWNER_AUTO_ASSIGN=true
 # Optional - HTTP Settings
 JNT_HTTP_TIMEOUT=30
 JNT_HTTP_CONNECT_TIMEOUT=10
-
-# Optional - Webhook retry policy
-JNT_WEBHOOK_RETRY_TIMES=3
-JNT_WEBHOOK_RETRY_BACKOFF_SECONDS=60
 ```
 
 ## Obtaining API Credentials
@@ -93,10 +89,10 @@ JNT_WEBHOOK_RETRY_BACKOFF_SECONDS=60
 
 J&T provides separate environments:
 
-| Environment | Base URL | Override env |
-|-------------|----------|---------------|
-| Testing | `https://demoopenapi.jtexpress.my/webopenplatformapi` | `JNT_BASE_URL_TESTING` |
-| Production | `https://ylopenapi.jtexpress.my/webopenplatformapi` | `JNT_BASE_URL_PRODUCTION` |
+| Environment | Base URL |
+|-------------|----------|
+| Testing | `https://demoopenapi.jtexpress.my/webopenplatformapi` |
+| Production | `https://ylopenapi.jtexpress.my/webopenplatformapi` |
 
 The package automatically uses the correct URL based on `JNT_ENVIRONMENT`.
 
@@ -106,18 +102,17 @@ All Artisan commands extend the abstract `JntCommand` base class (`src/Console/J
 
 | Subdirectory | Command(s) |
 |-------------|------------|
-| `health/` | `jnt:health` |
-| `orders/` | `jnt:order:create`, `jnt:order:track`, `jnt:order:cancel`, `jnt:order:print` |
-| `tracking/` | `jnt:order:track` |
-| `webhooks/` | `jnt:webhook:test` |
+| `Health/` | `jnt:health` |
+| `Orders/` | `jnt:order:create`, `jnt:order:cancel`, `jnt:order:print`, `jnt:config:check` |
+| `Tracking/` | `jnt:order:track` |
+| `Webhooks/` | `jnt:webhook:test` |
 
 ## Verify Installation
 
-Run the health check. It validates required config keys, the RSA private key, and the
-configured base URLs before attempting API connectivity:
+Run the configuration check command:
 
 ```bash
-php artisan jnt:health
+php artisan jnt:config:check
 ```
 
 Expected output:
