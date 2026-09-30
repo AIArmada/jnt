@@ -173,7 +173,7 @@ php artisan jnt:webhook:test {--url=}
 
 ## Requirements
 
-- PHP 8.4+
+- PHP 8.5+
 - Laravel 13+
 - `commerce-support` package for multi-tenancy
 - `spatie/laravel-data` for DTOs

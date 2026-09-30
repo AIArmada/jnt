@@ -8,7 +8,7 @@
 - **Clean API naming** – use `orderId` instead of `txlogisticId`, `trackingNumber` instead of `billCode`.
 - **Type-safe enums** – `ExpressType::DOMESTIC` instead of magic strings like `'EZ'`.
 - **First-class Laravel DX** – facades, fluent builders, data objects, events, Artisan commands.
-- **Production ready** – PHP 8.4 / Laravel 13, PHPStan level 6, Pest test suite.
+- **Production ready** – PHP 8.5 / Laravel 13, PHPStan level 6, Pest test suite.
 - **Webhooks included** – automatic signature verification and event dispatching.
 
 ## Installation
