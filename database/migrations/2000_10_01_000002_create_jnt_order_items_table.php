@@ -14,9 +14,10 @@ return new class extends Migration
         $tables = config('jnt.database.tables', []);
         $prefix = config('jnt.database.table_prefix', 'jnt_');
         $orderItemsTable = $tables['order_items'] ?? $prefix . 'order_items';
+        $jsonType = (string) commerce_json_column_type('jnt', 'jsonb');
+        $usePostgresGin = $jsonType === 'jsonb' && DB::connection()->getDriverName() === 'pgsql';
 
-        Schema::create($orderItemsTable, function (Blueprint $table): void {
-            $jsonType = (string) commerce_json_column_type('jnt', 'jsonb');
+        Schema::create($orderItemsTable, function (Blueprint $table) use ($jsonType, $usePostgresGin): void {
             $table->uuid('id')->primary();
             $table->foreignUuid('order_id')->index();
             $table->string('name', 200);
@@ -31,13 +32,10 @@ return new class extends Migration
             $table->timestampsTz();
 
             $table->index(['order_id', 'name']);
-        });
 
-        // GIN indexes only work with jsonb in PostgreSQL
-        if (commerce_json_column_type('jnt', 'jsonb') === 'jsonb' && DB::connection()->getDriverName() === 'pgsql') {
-            Schema::table($orderItemsTable, function (Blueprint $table) use ($orderItemsTable): void {
-                DB::statement('CREATE INDEX jnt_order_items_metadata_gin_index ON ' . $orderItemsTable . ' USING GIN (metadata)');
-            });
-        }
+            if ($usePostgresGin) {
+                $table->index('metadata', 'jnt_order_items_metadata_gin_index', 'gin');
+            }
+        });
     }
 };

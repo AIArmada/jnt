@@ -14,8 +14,9 @@ return new class extends Migration
         $tableName = config('jnt.database.tables.orders', config('jnt.database.table_prefix', 'jnt_') . 'orders');
 
         $jsonType = (string) commerce_json_column_type('jnt', 'jsonb');
+        $usePostgresGin = $jsonType === 'jsonb' && DB::connection()->getDriverName() === 'pgsql';
 
-        Schema::create($tableName, function (Blueprint $table) use ($jsonType): void {
+        Schema::create($tableName, function (Blueprint $table) use ($jsonType, $usePostgresGin): void {
             $table->uuid('id')->primary();
             $table->string('order_id', 50)->unique();
             $table->string('tracking_number', 30)->nullable()->unique();
@@ -67,14 +68,12 @@ return new class extends Migration
 
             $table->index(['status', 'customer_code'], 'jnt_orders_customer_status_idx');
             $table->index(['status', 'created_at'], 'jnt_orders_status_date_idx');
-        });
 
-        if ($jsonType === 'jsonb' && DB::connection()->getDriverName() === 'pgsql') {
-            Schema::table($tableName, function (Blueprint $table) use ($tableName): void {
-                DB::statement('CREATE INDEX jnt_orders_sender_gin_index ON ' . $tableName . ' USING GIN (sender)');
-                DB::statement('CREATE INDEX jnt_orders_receiver_gin_index ON ' . $tableName . ' USING GIN (receiver)');
-                DB::statement('CREATE INDEX jnt_orders_metadata_gin_index ON ' . $tableName . ' USING GIN (metadata)');
-            });
-        }
+            if ($usePostgresGin) {
+                $table->index('sender', 'jnt_orders_sender_gin_index', 'gin');
+                $table->index('receiver', 'jnt_orders_receiver_gin_index', 'gin');
+                $table->index('metadata', 'jnt_orders_metadata_gin_index', 'gin');
+            }
+        });
     }
 };

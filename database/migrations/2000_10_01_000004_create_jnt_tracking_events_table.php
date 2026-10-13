@@ -14,8 +14,10 @@ return new class extends Migration
         $tables = config('jnt.database.tables', []);
         $prefix = config('jnt.database.table_prefix', 'jnt_');
         $trackingEventsTable = $tables['tracking_events'] ?? $prefix . 'tracking_events';
+        $jsonType = (string) commerce_json_column_type('jnt', 'jsonb');
+        $usePostgresGin = $jsonType === 'jsonb' && DB::connection()->getDriverName() === 'pgsql';
 
-        Schema::create($trackingEventsTable, function (Blueprint $table): void {
+        Schema::create($trackingEventsTable, function (Blueprint $table) use ($jsonType, $usePostgresGin): void {
             $table->uuid('id')->primary();
             $table->string('event_hash', 64)->nullable();
             $table->foreignUuid('order_id')->nullable()->index();
@@ -55,7 +57,6 @@ return new class extends Migration
             $table->string('signature_picture_url', 500)->nullable();
             $table->string('sign_url', 500)->nullable();
             $table->string('electronic_signature_pic_url', 500)->nullable();
-            $jsonType = (string) commerce_json_column_type('jnt', 'jsonb');
             $table->{$jsonType}('payload')->nullable();
             $table->nullableMorphs('owner');
             $table->timestampsTz();
@@ -63,13 +64,10 @@ return new class extends Migration
             $table->index(['tracking_number', 'scan_time'], 'jnt_tracking_events_timeline_idx');
             $table->index(['order_id', 'scan_time'], 'jnt_tracking_events_order_history_idx');
             $table->unique('event_hash', 'jnt_tracking_events_event_hash_unique');
-        });
 
-        // GIN indexes only work with jsonb in PostgreSQL
-        if (commerce_json_column_type('jnt', 'jsonb') === 'jsonb' && DB::connection()->getDriverName() === 'pgsql') {
-            Schema::table($trackingEventsTable, function (Blueprint $table) use ($trackingEventsTable): void {
-                DB::statement('CREATE INDEX jnt_tracking_events_payload_gin_index ON ' . $trackingEventsTable . ' USING GIN (payload)');
-            });
-        }
+            if ($usePostgresGin) {
+                $table->index('payload', 'jnt_tracking_events_payload_gin_index', 'gin');
+            }
+        });
     }
 };
