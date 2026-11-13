@@ -334,7 +334,7 @@ class JntShippingDriver implements ShippingDriverInterface
     protected function createPackageInfo(ShipmentData $data): PackageInfoData
     {
         return new PackageInfoData(
-            quantity: 1,
+            quantity: $data->packages === [] ? 1 : array_sum(array_column($data->packages, 'quantity')),
             weight: round($data->getTotalWeight() / 1000, 2),
             valueMinor: $data->declaredValue ?? 0,
             goodsType: GoodsType::PACKAGE,
